@@ -31,17 +31,27 @@ import tensorboard as tb
 import random
 import nltk
 import sacrebleu
+from absl import app
+from absl import flags
+
+FLAGS = flags.FLAGS
+flags.DEFINE_integer('steps', 6000, "Finetuning training steps.")
+flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"], "model size")
+flags.DEFINE_string("name", "default", "name/description of model  version")
+
+INPUT_LENGTH = 512 #1033 - longest training input for redial
+TARGET_LENGTH = 128 #159 - longest trainin target for redial
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 BASE_DIR = "gs://e2e_central"
 DATA_DIR = os.path.join(BASE_DIR, "data")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 
-MODEL_SIZE = "3B"
 # Public GCS path for T5 pre-trained model checkpoints
 BASE_PRETRAINED_DIR = "gs://t5-data/pretrained_models"
-PRETRAINED_DIR = os.path.join(BASE_PRETRAINED_DIR, MODEL_SIZE)
-MODEL_DIR = os.path.join(MODELS_DIR, MODEL_SIZE)
+PRETRAINED_DIR = ""
+MODEL_DIR = ""
 
 print("--------DETECTING TPUs----")
 TPU_TOPOLOGY = "2x2"
@@ -63,6 +73,8 @@ rd_tsv_path = {
     "train": os.path.join(DATA_DIR, "rd-train.tsv"),
     "validation": os.path.join(DATA_DIR, "rd-validation.tsv")
 }
+
+
 
 def tf_verbosity_level(level):
   """Changes verbosity level."""
@@ -145,7 +157,7 @@ def load_predictions(task_name):
   # Grab the dataset for this task.
   ds = t5.data.TaskRegistry.get(task_name).get_dataset(
       split="validation",
-      sequence_length={"inputs": 128, "targets": 32},
+      sequence_length={"inputs": INPUT_LENGTH, "targets": TARGET_LENGTH},
       shuffle=False)
 
   # Grab the paths of all logged predictions.
@@ -213,10 +225,16 @@ def save_metrics(task_name):
           "validation_eval/metrics" + str(checkpoint_step) + ".json")
   json.dump({"nltk_bleu_score" : nltk_bs, "sacrebleu_blue_score" : sb_bs, "recall@1" : 0}, tf.io.gfile.GFile(metrics_path, "w"))
 
-def run():
+def main(argv):
   """Main method for fintuning: builds, trains, and evaluates t5."""
   tf.disable_v2_behavior()
   tf.compat.v1.enable_eager_execution()
+
+  global PRETRAINED_DIR
+  global MODEL_DIR
+  PRETRAINED_DIR = os.path.join(BASE_PRETRAINED_DIR, FLAGS.size)
+  MODEL_DIR = os.path.join(MODELS_DIR, FLAGS.size, FLAGS.name)
+
 
   # load or build data
   if tf.io.gfile.exists(rd_counts_path):
@@ -258,7 +276,7 @@ def run():
       "base": (2, 128, 8),
       "large": (8, 64, 4),
       "3B": (8, 16, 1),
-      "11B": (8, 16, 1)}[MODEL_SIZE]
+      "11B": (8, 16, 1)}[FLAGS.size]
 
   tf.io.gfile.makedirs(MODEL_DIR)
   # The models from the t5 paper paper are based on the Mesh Tensorflow Transformer.
@@ -268,7 +286,7 @@ def run():
       tpu_topology=TPU_TOPOLOGY,
       model_parallelism=model_parallelism,
       batch_size=train_batch_size,
-      sequence_length={"inputs": 128, "targets": 32},
+      sequence_length={"inputs": INPUT_LENGTH, "targets": TARGET_LENGTH},
       learning_rate_schedule=0.003,
       save_checkpoints_steps=5000,
       keep_checkpoint_max=keep_checkpoint_max,
@@ -278,7 +296,7 @@ def run():
   # Initiate Tensorboard
   tb.notebook.start("--logdir " + MODELS_DIR)
 
-  FINETUNE_STEPS = 6000 #@param {type: "integer"}
+  FINETUNE_STEPS = FLAGS.steps #@param {type: "integer"}
 
   model.finetune(
       mixture_or_task_name="rd_recommendations",
@@ -309,4 +327,4 @@ def run():
   print("Model saved to:", saved_model_path)
 
 if __name__ == "__main__":
-  run()
+  app.run(main)
