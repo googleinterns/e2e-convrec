@@ -38,6 +38,29 @@ def prepare_redial(data_dir):
     write_jsonl("./redial/rd-train-formatted.jsonl", train_formatted)
     write_jsonl("./redial/rd-test-formatted.jsonl", test_formatted)
 
+def get_lengths(data_dir):
+    data = read_jsonl(os.path.join(data_dir, "rd-train-formatted.jsonl"))
+    input_len = target_len = 0
+    # for example in data:
+    #     input_len = max(input_len, len(example["conversation"].split()))
+    #     target_len = max(target_len, len(example["response"].split()))
+    def len_function(key):
+        return lambda x: len(x[key].split())
+
+    data = sorted(data, key=len_function("conversation"))
+    print(data[0])
+    input_len = len_function("conversation")(data[-1])
+    print("Longest Input: ")
+    print(data[-1]["conversation"].split())
+    print("Average: {:f}".format(np.mean(map(len_function("conversation"), data))))
+    data = sorted(data, key=len_function("response"))
+    target_len = len_function("response")(data[-1])
+    print("Longest Target: ")
+    print(data[-1]["response"].split())
+
+    print("MAX LENGTH: INPUT - {:d}, TARGET - {:d}".format(input_len, target_len))
+    return (input_len, target_len)
+
 #Helper Functions
 
 def read_jsonl(filename):
@@ -99,5 +122,6 @@ def array_preview(name, arr):
         print(arr[0])
 
 if __name__ == "__main__":
-    prepare_redial("./redial")
+    # prepare_redial("./redial")
+    get_lengths("./redial")
 
