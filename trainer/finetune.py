@@ -33,11 +33,13 @@ import nltk
 import sacrebleu
 from absl import app
 from absl import flags
+from trainer import preprocessing
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('steps', 6000, "Finetuning training steps.")
 flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"], "model size")
 flags.DEFINE_string("name", "default", "name/description of model  version")
+flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"], "run mode: train, evaluate, or all")
 
 INPUT_LENGTH = 512 #1033 - longest training input for redial
 TARGET_LENGTH = 128 #159 - longest trainin target for redial
@@ -53,15 +55,6 @@ BASE_PRETRAINED_DIR = "gs://t5-data/pretrained_models"
 PRETRAINED_DIR = ""
 MODEL_DIR = ""
 
-print("--------DETECTING TPUs----")
-TPU_TOPOLOGY = "2x2"
-try:
-  tpu = tf.distribute.cluster_resolver.TPUClusterResolver()  # TPU detection
-  TPU_ADDRESS = tpu.get_master()
-  print('Running on TPU:', TPU_ADDRESS)
-except ValueError:
-  raise BaseException('ERROR: Not connected to a TPU runtime')
-
 # Locations for reading and writing Redial data
 RD_JSONL_DIR = "gs://e2e_central/data/redial/"
 RD_SPLIT_FNAMES = {
@@ -74,79 +67,12 @@ rd_tsv_path = {
     "validation": os.path.join(DATA_DIR, "rd-validation.tsv")
 }
 
-
-
 def tf_verbosity_level(level):
   """Changes verbosity level."""
   og_level = tf.logging.get_verbosity()
   tf.logging.set_verbosity(level)
   yield
   tf.logging.set_verbosity(og_level)
-
-def rd_jsonl_to_tsv(in_fname, out_fname):
-  """Converts the redial jsonl to a tsv."""
-  print("Reading: " + in_fname)
-  def fix_spacing(text):
-    """Removes extra spaces."""
-    # Remove incorrect spacing around punctuation.
-    text = text.replace(" ,", ",").replace(" .", ".").replace(" %", "%")
-    text = text.replace(" - ", "-").replace(" : ", ":").replace(" / ", "/")
-    text = text.replace("( ", "(").replace(" )", ")")
-    text = text.replace("`` ", "\"").replace(" ''", "\"")
-    text = text.replace(" 's", "'s").replace("s ' ", "s' ")
-    return text
-
-  count = 0
-  with tf.io.gfile.GFile(in_fname, "rb") as infile,\
-      tf.io.gfile.GFile(out_fname, "w") as outfile:
-    for line in infile:
-      ex = json.loads(line)
-      print(line)
-      conversation = fix_spacing(ex["conversation"])
-      response = fix_spacing(ex["response"])
-      # Write this line as <conversation>\t<response>
-      outfile.write("%s\t%s\n" % (conversation, response))
-      count += 1
-      tf.logging.log_every_n(
-          tf.logging.INFO,
-          "Wrote %d examples to %s." % (count, out_fname),
-          1000)
-    return count
-
-def rd_dataset_fn(split, shuffle_files=False):
-  """Returns a tf dataset of (conversation, response) pairs for redial."""
-  # We only have one file for each split.
-  del shuffle_files
-
-  # Load lines from the text file as examples.
-  ds = tf.data.TextLineDataset(rd_tsv_path[split])
-  # Split each "<conversation>\t<response>" example into (conversation, response) tuple.
-  ds = ds.map(
-      functools.partial(tf.io.decode_csv, record_defaults=["", ""],
-                        field_delim="\t", use_quote_delim=False),
-      num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  # Map each tuple to a {"question": ... "answer": ...} dict.
-  ds = ds.map(lambda *ex: dict(zip(["conversation", "response"], ex)))
-  return ds
-
-def conversation_preprocessor(ds):
-  """Prepares text for input into model."""
-  def normalize_text(text):
-    """Lowercase and remove quotes from a TensorFlow string."""
-    text = tf.strings.lower(text)
-    text = tf.strings.regex_replace(text,"'(.*)'", r"\1")
-    return text
-
-  def to_inputs_and_targets(ex):
-    """Map {"conversation": ..., "response": ...}->{"inputs": ..., "targets": ...}."""
-    return {
-        "inputs":
-            tf.strings.join(
-                ["movie recommendation: ", normalize_text(ex["conversation"])]),
-        "targets": normalize_text(ex["response"])
-    }
-  return ds.map(to_inputs_and_targets, 
-                num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
 def _prediction_file_to_ckpt(path):
   """Extract the global step from a prediction filename."""
@@ -181,36 +107,11 @@ def load_predictions(task_name):
                       pred.strip()))
   return (results, checkpoint_step)
 
-def print_random_predictions(task_name, n=10):
-  """Print n predictions from the validation split of a task."""
-  
-  results = load_predictions(task_name)[0]
-
-  # Grab the paths of all logged predictions.
-  prediction_files = tf.io.gfile.glob(
-      os.path.join(
-          MODEL_DIR,
-          "validation_eval/%s_*_predictions" % task_name))
-  # Get most recent prediction file by sorting by their step.
-  latest_prediction_file = sorted(
-      prediction_files, key=_prediction_file_to_ckpt)[-1]
-  
-  print("<== Random predictions for %s using checkpoint %s ==>\n" %
-        (task_name, 
-        _prediction_file_to_ckpt(latest_prediction_file)))
-
-  for inp, tgt, pred in random.choices(results, k=10):
-    print("Input:", inp)
-    print("Target:", tgt)
-    print("Prediction:", pred)
-    print("Counted as Correct?", tgt == pred)
-    print()
-
 def save_metrics(task_name):
   """Prints and saves metrics for the most recent checkpoint."""
   results, checkpoint_step = load_predictions(task_name)
   predictions = [line[2] for line in results]
-  targets = [line[0] for line in results]
+  targets = [line[1] for line in results]
 
   hyp = list(map(lambda x: x.split(), predictions))
   ref = list(map(lambda x: [x.split()], targets))
@@ -219,11 +120,12 @@ def save_metrics(task_name):
   sb_bs = str(sacrebleu.corpus_bleu(predictions, [targets]))
 
   print("NLTK BLEU SCORE: {:f}, SACREBLEU BLEU SCORE: {:s}, CHECKPOINT: {:d}".format(nltk_bs, sb_bs, checkpoint_step))
-  # Writes to $MODEL_DIR$/validation_eval/metrics$CHECKPOINT_NUMBER$.json
+  # Writes to $MODEL_DIR$/validation_eval/metrics$CHECKPOINT_NUMBER.json
   metrics_path = os.path.join(
           MODEL_DIR,
           "validation_eval/metrics" + str(checkpoint_step) + ".json")
   json.dump({"nltk_bleu_score" : nltk_bs, "sacrebleu_blue_score" : sb_bs, "recall@1" : 0}, tf.io.gfile.GFile(metrics_path, "w"))
+
 
 def main(argv):
   """Main method for fintuning: builds, trains, and evaluates t5."""
@@ -235,6 +137,14 @@ def main(argv):
   PRETRAINED_DIR = os.path.join(BASE_PRETRAINED_DIR, FLAGS.size)
   MODEL_DIR = os.path.join(MODELS_DIR, FLAGS.size, FLAGS.name)
 
+  print("--------DETECTING TPUs----")
+  try:
+    TPU_TOPOLOGY = "2x2"
+    tpu = tf.distribute.cluster_resolver.TPUClusterResolver()  # TPU detection
+    TPU_ADDRESS = tpu.get_master()
+    print('Running on TPU:', TPU_ADDRESS)
+  except ValueError:
+    raise BaseException('ERROR: Not connected to a TPU runtime')
 
   # load or build data
   if tf.io.gfile.exists(rd_counts_path):
@@ -249,23 +159,23 @@ def main(argv):
     num_rd_examples = {}
     for split, fname in RD_SPLIT_FNAMES.items():
       print(os.path.join(RD_JSONL_DIR, fname))
-      num_rd_examples[split] = rd_jsonl_to_tsv(
+      num_rd_examples[split] = preprocessing.rd_jsonl_to_tsv(
           os.path.join(RD_JSONL_DIR, fname), rd_tsv_path[split])
     json.dump(num_rd_examples, tf.io.gfile.GFile(rd_counts_path, "w"))
 
   t5.data.TaskRegistry.add(
       "rd_recommendations",
       # Supply a function which returns a tf.data.Dataset.
-      dataset_fn=rd_dataset_fn,
+      dataset_fn=preprocessing.rd_dataset_fn,
       splits=["train", "validation"],
       # Supply a function which preprocesses text from the tf.data.Dataset.
-      text_preprocessor=[conversation_preprocessor],
+      text_preprocessor=[preprocessing.conversation_preprocessor],
       # Use the same vocabulary that we used for pre-training.
       sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
       # Lowercase targets before computing metrics.
       postprocess_fn=t5.data.postprocessors.lower_text, 
       # We'll use accuracy as our evaluation metric.
-      metric_fns=[t5.evaluation.metrics.accuracy],
+      metric_fns=[t5.evaluation.metrics.accuracy, t5.evaluation.metrics.bleu],
       # Not required, but helps for mixing and auto-caching.
       num_input_examples=num_rd_examples)
 
@@ -293,26 +203,26 @@ def main(argv):
       iterations_per_loop=100,
   )
 
-  # Initiate Tensorboard
-  tb.notebook.start("--logdir " + MODELS_DIR)
-
   FINETUNE_STEPS = FLAGS.steps #@param {type: "integer"}
-  
-  model.finetune(
-      mixture_or_task_name="rd_recommendations",
-      pretrained_model_dir=PRETRAINED_DIR,
-      finetune_steps=FINETUNE_STEPS
-  )
+
+  if FLAGS.mode == "all" or FLAGS.mode == "train":
+    model.finetune(
+        mixture_or_task_name="rd_recommendations",
+        pretrained_model_dir=PRETRAINED_DIR,
+        finetune_steps=FINETUNE_STEPS
+    )
   tf.compat.v1.disable_eager_execution()
 
   # Evaluate and save predictions
-  model.batch_size = train_batch_size * 4 # a larger batch size requires less memory.
-  model.eval(
-      mixture_or_task_name="rd_recommendations",
-      checkpoint_steps="all"
-  )
+  if FLAGS.mode == "all" or FLAGS.mode == "evaluate":
+    model.batch_size = train_batch_size * 4 # a larger batch size requires less memory.
+    model.eval(
+        mixture_or_task_name="rd_recommendations",
+        checkpoint_steps="all"
+    )
 
-  save_metrics("rd_recommendations")
+    save_metrics("rd_recommendations")
+
 
   # Export the SavedModel
   export_dir = os.path.join(MODEL_DIR, "export")
