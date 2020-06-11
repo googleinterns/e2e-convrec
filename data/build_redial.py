@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Preprocessing Tools for the E2E Convrec Project."""
+"""Preprocessing Scripts for the Redial Dataset."""
 import json
 from tqdm import tqdm
 import numpy as np
@@ -38,28 +38,23 @@ def prepare_redial(data_dir):
     write_jsonl("./redial/rd-train-formatted.jsonl", train_formatted)
     write_jsonl("./redial/rd-test-formatted.jsonl", test_formatted)
 
-def get_lengths(data_dir):
-    data = read_jsonl(os.path.join(data_dir, "rd-train-formatted.jsonl"))
-    input_len = target_len = 0
-    # for example in data:
-    #     input_len = max(input_len, len(example["conversation"].split()))
-    #     target_len = max(target_len, len(example["response"].split()))
+def length_summary(data_dir):
+    """prints a five number summary of the lengths of redial input/outputs."""
+    print("--Loading Dataset For Summary--")
+    train_data = read_jsonl(os.path.join(data_dir, "rd-train-formatted.jsonl"))
+    test_data = read_jsonl(os.path.join(data_dir, "rd-train-formatted.jsonl"))
+
     def len_function(key):
         return lambda x: len(x[key].split())
 
-    data = sorted(data, key=len_function("conversation"))
-    print(data[0])
-    input_len = len_function("conversation")(data[-1])
-    print("Longest Input: ")
-    print(data[-1]["conversation"].split())
-    print("Average: {:f}".format(np.mean(map(len_function("conversation"), data))))
-    data = sorted(data, key=len_function("response"))
-    target_len = len_function("response")(data[-1])
-    print("Longest Target: ")
-    print(data[-1]["response"].split())
+    lengths = {"train_inputs" : list(map(len_function("conversation"), train_data)),
+                "train_targets" : list(map(len_function("response"), train_data)),
+                "test_inputs" : list(map(len_function("conversation"), test_data)),
+                "test_targets" : list(map(len_function("response"), test_data))}
 
-    print("MAX LENGTH: INPUT - {:d}, TARGET - {:d}".format(input_len, target_len))
-    return (input_len, target_len)
+    for name, length_array in lengths.items():
+        print(name.upper() + ": ")
+        quartile_summary(length_array)
 
 #Helper Functions
 
@@ -77,7 +72,7 @@ def write_jsonl(filename, arr):
     with open(filename, 'w') as f:
         for line in arr:
             f.write(json.dumps(line) + "\n")
-
+    
 def replace_ids(dialogue):
     """Replaces movie ids in one redial dialogue with their corresponding movie titles."""
     movie_titles = dialogue["movieMentions"]
@@ -121,7 +116,16 @@ def array_preview(name, arr):
         print("first element :")
         print(arr[0])
 
+def quartile_summary(arr):
+    "Prints the five number summary for a 1d array"
+    quartiles = np.percentile(arr, [25, 50, 75])
+
+    print('MIN: {:d}'.format(min(arr)))
+    print('Q1: {:d}'.format(int(quartiles[0])))
+    print('MED: {:d}'.format(int(quartiles[1])))
+    print('Q3: {:d}'.format(int(quartiles[2])))
+    print('MAX: {:d}'.format(max(arr)))
+
 if __name__ == "__main__":
-    # prepare_redial("./redial")
-    get_lengths("./redial")
+    prepare_redial("./redial")
 
