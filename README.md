@@ -39,9 +39,11 @@ gcloud ai-platform jobs submit training new_default \
 --python-version=3.7 \
 --scale-tier=BASIC_TPU \
 -- \
---steps=$FINETUNING_STEPS \
---size=$MODEL_SIZE \
---name=$NAME_FOR_YOUR_MODEL
+--steps=6000 \
+--size=base \s
+--name=quickstart
+--mode=all
 
-steps, size, and name are user flags which default to 6000, base, and default. Size has to be either small, base, large, 3B, or 11B.
-if there is already a model at gs://e2e_central/models/$SIZE/$NAME, the program will continue training from that model's most recent checkpoint
+steps, size, name, and mode are user flags which default to 6000, base, default, and all. Size has to be either small, base, large, 3B, or 11B. Mode can be set to train
+(for finetuning), evaluation (for evaulating the most recnt checkpoint), or all (for both). if there is already a model at gs://e2e_central/models/$SIZE/$NAME, 
+the program will continue training from that model's most recent checkpoint
