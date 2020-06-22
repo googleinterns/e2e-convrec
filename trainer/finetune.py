@@ -41,13 +41,7 @@ flags.DEFINE_string("name", "default", "name/description of model  version")
 flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"], "run mode: train, evaluate, or all")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
-
-def tf_verbosity_level(level):
-  """Changes verbosity level."""
-  og_level = tf.logging.get_verbosity()
-  tf.logging.set_verbosity(level)
-  yield
-  tf.logging.set_verbosity(og_level)
+flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
 
 def main(argv):
   """Main method for fintuning: builds, trains, and evaluates t5."""
@@ -68,7 +62,8 @@ def main(argv):
     raise BaseException('ERROR: Not connected to a TPU runtime')
 
   # load or build data
-  if tf.io.gfile.exists(constants.RD_COUNTS_PATH):
+  if tf.io.gfile.exists(constants.RD_TSV_PATH["train"]) \
+    and tf.io.gfile.exists(constants.RD_TSV_PATH["validation"]):
     print("TSV's Found")
     # Used cached data and counts.
     tf.logging.info("Loading Redial from cache.")
@@ -110,7 +105,7 @@ def main(argv):
       "11B": (8, 16, 1)}[FLAGS.size]
 
   tf.io.gfile.makedirs(model_dir)
-  # The models from the t5 paper paper are based on the Mesh Tensorflow Transformer.
+  # The models from the t5 paper are based on the Mesh Tensorflow Transformer.
   model = t5.models.MtfModel(
       model_dir=model_dir,
       tpu=TPU_ADDRESS,
@@ -118,10 +113,9 @@ def main(argv):
       model_parallelism=model_parallelism,
       batch_size=train_batch_size,
       sequence_length={"inputs": constants.INPUT_LENGTH, "targets": constants.TARGET_LENGTH},
-      learning_rate_schedule=0.003,
-      save_checkpoints_steps=5000,
+      learning_rate_schedule=FLAGS.learning_rate,
+      save_checkpoints_steps=2000,
       keep_checkpoint_max=keep_checkpoint_max,
-      iterations_per_loop=100,
   )
 
   if FLAGS.mode == "all" or FLAGS.mode == "train":
@@ -139,7 +133,6 @@ def main(argv):
         mixture_or_task_name="rd_recommendations",
         checkpoint_steps="all"
     )
-
     metrics.save_metrics("rd_recommendations", model_dir)
 
 
