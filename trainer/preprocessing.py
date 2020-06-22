@@ -45,7 +45,6 @@ def rd_jsonl_to_tsv(in_fname, out_fname):
       tf.io.gfile.GFile(out_fname, "w") as outfile:
     for line in infile:
       ex = json.loads(line)
-      print(line)
       conversation = fix_spacing(ex["conversation"])
       response = fix_spacing(ex["response"])
       # Write this line as <conversation>\t<response>
