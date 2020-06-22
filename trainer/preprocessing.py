@@ -18,14 +18,7 @@ import tensorflow_datasets as tfds
 import functools
 import os
 import json
-
-BASE_DIR = "gs://e2e_central"
-DATA_DIR = os.path.join(BASE_DIR, "data")
-
-rd_tsv_path = {
-    "train": os.path.join(DATA_DIR, "rd-train.tsv"),
-    "validation": os.path.join(DATA_DIR, "rd-validation.tsv")
-}
+from trainer import constants
 
 def rd_jsonl_to_tsv(in_fname, out_fname):
   """Converts the redial jsonl to a tsv."""
@@ -62,7 +55,7 @@ def rd_dataset_fn(split, shuffle_files=False):
   del shuffle_files
 
   # Load lines from the text file as examples.
-  ds = tf.data.TextLineDataset(rd_tsv_path[split])
+  ds = tf.data.TextLineDataset(constants.RD_TSV_PATH[split])
   # Split each "<conversation>\t<response>" example into (conversation, response) tuple.
   ds = ds.map(
       functools.partial(tf.io.decode_csv, record_defaults=["", ""],
