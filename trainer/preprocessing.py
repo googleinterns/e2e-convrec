@@ -91,24 +91,3 @@ def conversation_preprocessor(ds):
     }
   return ds.map(to_inputs_and_targets, 
                 num_parallel_calls=tf.data.experimental.AUTOTUNE)
-
-def flip_titles(title_string):
-    """flips movie titles of form "Title, The (2020)" to "The Title (2020)".
-    
-    Args:
-        title_string: a string representing a group of movie titles. For example:
-            "Usual Suspects, The (1995) @ Matrix, The (1999) @ Rock, The (1996) @ Saving Private Ryan (1998)
-    Returns:
-        formatted string, for example:
-            "The Usual Suspects (1995) @ The Matrix (1999) @  The Rock (1996) @ Saving Private Ryan (1998)"""
-
-    movies = [title.split(" ") for title in title_string.split("@")]
-
-    for movie in movies:
-        if len(movie) > 1 and movie[-1] == "The" and movie[-2][-1] == ",":
-            print(movie)
-            movie.insert(0, "The")
-            movie.pop()
-            movie[-1] = movie[-1][:-1]
-            print(movie)
-    return " @ ".join([" ".join(movie) for movie in movies])

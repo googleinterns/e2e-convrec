@@ -14,7 +14,6 @@
 """Script for Running, Training, and Evaluating E2E Convrec Experiments."""
 
 # SETUP
-print("Installing dependencies...")
 import functools
 import os
 import time
@@ -33,39 +32,15 @@ import nltk
 import sacrebleu
 from absl import app
 from absl import flags
-from trainer import preprocessing
+from trainer import preprocessing, constants, metrics
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('steps', 6000, "Finetuning training steps.")
 flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"], "model size")
 flags.DEFINE_string("name", "default", "name/description of model  version")
 flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"], "run mode: train, evaluate, or all")
-
-INPUT_LENGTH = 512 #1033 - longest training input for redial
-TARGET_LENGTH = 128 #159 - longest trainin target for redial
-
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-BASE_DIR = "gs://e2e_central"
-DATA_DIR = os.path.join(BASE_DIR, "data")
-MODELS_DIR = os.path.join(BASE_DIR, "models")
-
-# Public GCS path for T5 pre-trained model checkpoints
-BASE_PRETRAINED_DIR = "gs://t5-data/pretrained_models"
-PRETRAINED_DIR = ""
-MODEL_DIR = ""
-
-# Locations for reading and writing Redial data
-RD_JSONL_DIR = "gs://e2e_central/data/redial/"
-RD_SPLIT_FNAMES = {
-    "train": "rd-train-formatted.jsonl",
-    "validation": "rd-test-formatted.jsonl"
-}
-rd_counts_path = os.path.join(DATA_DIR, "rd-counts.json")
-rd_tsv_path = {
-    "train": os.path.join(DATA_DIR, "rd-train.tsv"),
-    "validation": os.path.join(DATA_DIR, "rd-validation.tsv")
-}
+flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
+flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 
 def tf_verbosity_level(level):
   """Changes verbosity level."""
@@ -74,68 +49,14 @@ def tf_verbosity_level(level):
   yield
   tf.logging.set_verbosity(og_level)
 
-def _prediction_file_to_ckpt(path):
-  """Extract the global step from a prediction filename."""
-  return int(path.split("_")[-2])
-
-def load_predictions(task_name):
-  """Loads the most recent predictions in as ([(input, target, pred)], step)."""
-  # Grab the dataset for this task.
-  ds = t5.data.TaskRegistry.get(task_name).get_dataset(
-      split="validation",
-      sequence_length={"inputs": INPUT_LENGTH, "targets": TARGET_LENGTH},
-      shuffle=False)
-
-  # Grab the paths of all logged predictions.
-  prediction_files = tf.io.gfile.glob(
-      os.path.join(
-          MODEL_DIR,
-          "validation_eval/%s_*_predictions" % task_name))
-
-  # Get most recent prediction file by sorting by their step.
-  latest_prediction_file = sorted(
-      prediction_files, key=_prediction_file_to_ckpt)[-1]
-
-  checkpoint_step =_prediction_file_to_ckpt(latest_prediction_file)
-
-  # Collect (inputs, targets, prediction) from the dataset and predictions file
-  results = []
-  with tf.io.gfile.GFile(latest_prediction_file) as preds:
-    for ex, pred in zip(tfds.as_numpy(ds), preds):
-      results.append((tf.compat.as_text(ex["inputs_plaintext"]),
-                      tf.compat.as_text(ex["targets_plaintext"]),
-                      pred.strip()))
-  return (results, checkpoint_step)
-
-def save_metrics(task_name):
-  """Prints and saves metrics for the most recent checkpoint."""
-  results, checkpoint_step = load_predictions(task_name)
-  predictions = [line[2] for line in results]
-  targets = [line[1] for line in results]
-
-  hyp = list(map(lambda x: x.split(), predictions))
-  ref = list(map(lambda x: [x.split()], targets))
-
-  nltk_bs = nltk.translate.bleu_score.corpus_bleu(list_of_references=ref, hypotheses=hyp)
-  sb_bs = str(sacrebleu.corpus_bleu(predictions, [targets]))
-
-  print("NLTK BLEU SCORE: {:f}, SACREBLEU BLEU SCORE: {:s}, CHECKPOINT: {:d}".format(nltk_bs, sb_bs, checkpoint_step))
-  # Writes to $MODEL_DIR$/validation_eval/metrics$CHECKPOINT_NUMBER.json
-  metrics_path = os.path.join(
-          MODEL_DIR,
-          "validation_eval/metrics" + str(checkpoint_step) + ".json")
-  json.dump({"nltk_bleu_score" : nltk_bs, "sacrebleu_blue_score" : sb_bs, "recall@1" : 0}, tf.io.gfile.GFile(metrics_path, "w"))
-
-
 def main(argv):
   """Main method for fintuning: builds, trains, and evaluates t5."""
   tf.disable_v2_behavior()
   tf.compat.v1.enable_eager_execution()
-
-  global PRETRAINED_DIR
-  global MODEL_DIR
-  PRETRAINED_DIR = os.path.join(BASE_PRETRAINED_DIR, FLAGS.size)
-  MODEL_DIR = os.path.join(MODELS_DIR, FLAGS.size, FLAGS.name)
+  warnings.filterwarnings("ignore", category=DeprecationWarning)
+  
+  pretrained_dir = os.path.join(constants.BASE_PRETRAINED_DIR, FLAGS.size)
+  model_dir = os.path.join(constants.MODELS_DIR, FLAGS.size, FLAGS.name)
 
   print("--------DETECTING TPUs----")
   try:
@@ -147,21 +68,21 @@ def main(argv):
     raise BaseException('ERROR: Not connected to a TPU runtime')
 
   # load or build data
-  if tf.io.gfile.exists(rd_counts_path):
+  if tf.io.gfile.exists(constants.RD_COUNTS_PATH):
     print("TSV's Found")
     # Used cached data and counts.
     tf.logging.info("Loading Redial from cache.")
-    num_rd_examples = json.load(tf.io.gfile.GFile(rd_counts_path))
+    num_rd_examples = json.load(tf.io.gfile.GFile(constants.RD_COUNTS_PATH))
   else:
     print("TSV's Not Found")
     # Create TSVs and get counts.
     tf.logging.info("Generating Redial TSVs.")
     num_rd_examples = {}
-    for split, fname in RD_SPLIT_FNAMES.items():
-      print(os.path.join(RD_JSONL_DIR, fname))
+    for split, fname in constants.RD_SPLIT_FNAMES.items():
+      print(os.path.join(constants.RD_JSONL_DIR, fname))
       num_rd_examples[split] = preprocessing.rd_jsonl_to_tsv(
-          os.path.join(RD_JSONL_DIR, fname), rd_tsv_path[split])
-    json.dump(num_rd_examples, tf.io.gfile.GFile(rd_counts_path, "w"))
+          os.path.join(constants.RD_JSONL_DIR, fname), constants.RD_TSV_PATH[split])
+    json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
   t5.data.TaskRegistry.add(
       "rd_recommendations",
@@ -188,28 +109,26 @@ def main(argv):
       "3B": (8, 16, 1),
       "11B": (8, 16, 1)}[FLAGS.size]
 
-  tf.io.gfile.makedirs(MODEL_DIR)
+  tf.io.gfile.makedirs(model_dir)
   # The models from the t5 paper paper are based on the Mesh Tensorflow Transformer.
   model = t5.models.MtfModel(
-      model_dir=MODEL_DIR,
+      model_dir=model_dir,
       tpu=TPU_ADDRESS,
       tpu_topology=TPU_TOPOLOGY,
       model_parallelism=model_parallelism,
       batch_size=train_batch_size,
-      sequence_length={"inputs": INPUT_LENGTH, "targets": TARGET_LENGTH},
+      sequence_length={"inputs": constants.INPUT_LENGTH, "targets": constants.TARGET_LENGTH},
       learning_rate_schedule=0.003,
       save_checkpoints_steps=5000,
       keep_checkpoint_max=keep_checkpoint_max,
       iterations_per_loop=100,
   )
 
-  FINETUNE_STEPS = FLAGS.steps #@param {type: "integer"}
-
   if FLAGS.mode == "all" or FLAGS.mode == "train":
     model.finetune(
         mixture_or_task_name="rd_recommendations",
-        pretrained_model_dir=PRETRAINED_DIR,
-        finetune_steps=FINETUNE_STEPS
+        pretrained_model_dir=pretrained_dir,
+        finetune_steps=FLAGS.steps
     )
   tf.compat.v1.disable_eager_execution()
 
@@ -221,18 +140,18 @@ def main(argv):
         checkpoint_steps="all"
     )
 
-    save_metrics("rd_recommendations")
+    metrics.save_metrics("rd_recommendations", model_dir)
 
 
   # Export the SavedModel
-  export_dir = os.path.join(MODEL_DIR, "export")
+  export_dir = os.path.join(model_dir, "export")
 
   model.batch_size = 1 # make one prediction per call
   saved_model_path = model.export(
       export_dir,
       checkpoint_step=-1,  # use most recent
-      beam_size=1,  # no beam search
-      temperature=1.0,  # sample according to predicted distribution
+      beam_size=FLAGS.beam_size,  # no beam search
+      temperature=FLAGS.temperature,  # sample according to predicted distribution
   )
   print("Model saved to:", saved_model_path)
 
