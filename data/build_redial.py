@@ -11,18 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Preprocessing Scripts for the Redial Dataset."""
+"""Preprocessing Scripts for the Redial Dataset. Reads redial data unformatted from https://redialdata.github.io/website/ 
+and saves it as a JSONL object of {"conversation": input, "response": output} for easy use as training data."""
 import json
 from tqdm import tqdm
 import numpy as np
 import re
 import os
+from absl import app
+from absl import flags
 
-def prepare_redial(data_dir):
+FLAGS = flags.FLAGS
+flags.DEFINE_string("data_dir", "./redial", "path to folder with redial data")
+flags.DEFINE_boolean("extra_redial_stats", False, "print extra summaries")
+
+RD_UNFORMATTED_FNAMES = {
+    "train": "rd-train-data.jsonl",
+    "validation": "rd-test-data.jsonl"
+}
+
+RD_FORMATTED_FNAMES = {
+    "train": "rd-train-formatted.jsonl",
+    "validation": "rd-test-data.jsonl"
+}
+
+def main(argv):
     """Processes raw redial data in data_dir and saves the results in data folder."""
-    print("--Loading Redial Dataset--")
-    train = read_jsonl(os.path.join(data_dir, "rd-train-data.jsonl"))
-    test = read_jsonl(os.path.join(data_dir,"rd-test-data.jsonl"))
+    print("--Loading Redial ataset--")
+    train = read_jsonl(os.path.join(FLAGS.data_dir, RD_UNFORMATTED_FNAMES["train"]))
+    test = read_jsonl(os.path.join(FLAGS.data_dir, RD_UNFORMATTED_FNAMES["test"]))
 
 
     print("--Replacing Movie IDs--")
@@ -35,14 +52,17 @@ def prepare_redial(data_dir):
     train_formatted = separate_responses(train)
     test_formatted = separate_responses(test)
 
-    write_jsonl("./redial/rd-train-formatted.jsonl", train_formatted)
-    write_jsonl("./redial/rd-test-formatted.jsonl", test_formatted)
+    write_jsonl(os.path.join(FLAGS.data_dir, RD_FORMATTED_FNAMES["train"]), train_formatted)
+    write_jsonl(os.path.join(FLAGS.data_dir, RD_FORMATTED_FNAMES["validation"]), test_formatted)
+    
+    if FLAGS.extra_redial_stats:
+        length_summary(FLAGS.data_dir)
 
 def length_summary(data_dir):
     """prints a five number summary of the lengths of redial input/outputs."""
     print("--Loading Dataset For Summary--")
-    train_data = read_jsonl(os.path.join(data_dir, "rd-train-formatted.jsonl"))
-    test_data = read_jsonl(os.path.join(data_dir, "rd-train-formatted.jsonl"))
+    train_data = read_jsonl(os.path.join(data_dir, RD_FORMATTED_FNAMES["train"]))
+    test_data = read_jsonl(os.path.join(data_dir, RD_FORMATTED_FNAMES["validation"]))
 
     def len_function(key):
         return lambda x: len(x[key].split())
@@ -74,25 +94,28 @@ def write_jsonl(filename, arr):
             f.write(json.dumps(line) + "\n")
     
 def replace_ids(dialogue):
-    """Replaces movie ids in one redial dialogue with their corresponding movie titles."""
+    """Replaces movie ids in one redial dialogue with their corresponding movie titles. Each movie is surrounded by '@'
+    tokens to separate from the rest of the dialogue."""
     movie_titles = dialogue["movieMentions"]
     for message in dialogue["messages"]:
         text = message["text"]
         replaced = []
         for word in text.split():
             if word[0] == "@" and re.sub('\\D', '', word) in movie_titles:
-                replaced.append( "@ " + movie_titles[re.sub('\\D', '', word)] + " @")
+                movie_id = re.sub('\\D', '', word)
+                replaced.append( "@ " + movie_titles[movie_id] + " @")
             else:
                 replaced.append(word)
         message["text"] = " ".join(replaced)
 
 def separate_responses(dataset):
-    """Creates a dataset of {"previous conversation" : "recommender response"} dictionaries
-    for every response by the recommending party in every conversation in the dataset."""
+    """Creates a dataset of {"previous conversation" : "recommender response"} dictionaries for every response by the 
+    recommending party in every conversation in the dataset. Turns are separated by either a [Assistant] or [User]
+    token which indicates if the next messages were said by a user or an assistant"""
     result = []
     for dialogue in tqdm(dataset):
         conversation = "" # the conversation history up until a turn
-        turn = "" # consecutive messags made by the same 
+        turn = "" # consecutive messages made by the same actor
         prev_id = None
         for message in dialogue["messages"]:
             if prev_id and message["senderWorkerId"] != prev_id:
@@ -127,5 +150,5 @@ def quartile_summary(arr):
     print('MAX: {:d}'.format(max(arr)))
 
 if __name__ == "__main__":
-    prepare_redial("./redial")
+   app.run(main)
 
