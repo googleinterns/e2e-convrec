@@ -41,7 +41,7 @@ module located in trainer.fintune:
     -- \
     --steps=6000 \
     --size=base \
-    --name=quickstart
+    --name=quickstart \
     --mode=all
 
 steps, size, name, and mode are user flags which default to 6000, base, default, and all. Size has to be either small, base, large, 3B, or 11B. Mode can be set to train
