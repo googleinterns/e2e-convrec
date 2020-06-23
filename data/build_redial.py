@@ -22,7 +22,7 @@ from absl import app
 from absl import flags
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string("data_dir", "./redial", "path to folder with redial data")
+flags.DEFINE_string("data_dir", "./data/redial", "path to folder with redial data")
 flags.DEFINE_boolean("extra_redial_stats", False, "print extra summaries")
 
 RD_UNFORMATTED_FNAMES = {
@@ -32,15 +32,14 @@ RD_UNFORMATTED_FNAMES = {
 
 RD_FORMATTED_FNAMES = {
     "train": "rd-train-formatted.jsonl",
-    "validation": "rd-test-data.jsonl"
+    "validation": "rd-test-formatted.jsonl"
 }
 
 def main(argv):
     """Processes raw redial data in data_dir and saves the results in data folder."""
-    print("--Loading Redial ataset--")
+    print("--Loading Redial Dataset--")
     train = read_jsonl(os.path.join(FLAGS.data_dir, RD_UNFORMATTED_FNAMES["train"]))
-    test = read_jsonl(os.path.join(FLAGS.data_dir, RD_UNFORMATTED_FNAMES["test"]))
-
+    test = read_jsonl(os.path.join(FLAGS.data_dir, RD_UNFORMATTED_FNAMES["validation"]))
 
     print("--Replacing Movie IDs--")
     for dialogue in tqdm(train):
@@ -117,8 +116,11 @@ def separate_responses(dataset):
         conversation = "" # the conversation history up until a turn
         turn = "" # consecutive messages made by the same actor
         prev_id = None
+
+        # Addind a dummy message from the the initiator makes sure we iterate through the end of the array
+        dialogue["messages"].append({"senderWorkerId" : dialogue["initiatorWorkerId"], "text" : ""})
         for message in dialogue["messages"]:
-            if prev_id and message["senderWorkerId"] != prev_id:
+            if (prev_id != None) and message["senderWorkerId"] != prev_id:
                 if message["senderWorkerId"] == dialogue["initiatorWorkerId"]:
                     # if the turn has switched to the user, add the (conversation, response) pair to response
                     result.append({"conversation" : conversation.strip(), "response" : turn.strip()})
