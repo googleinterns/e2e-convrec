@@ -70,7 +70,6 @@ def conversation_preprocessor(ds):
   def normalize_text(text):
     """Lowercase and remove quotes from a TensorFlow string."""
     text = tf.strings.lower(text)
-    text = tf.strings.regex_replace(text,"'(.*)'", r"\1")
     return text
 
   def to_inputs_and_targets(ex):

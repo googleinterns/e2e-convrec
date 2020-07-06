@@ -42,11 +42,10 @@ flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"], "run mode: train,
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
-
+flags.DEFINE_string("tpu_topology", "2x2", "topology of tpy used for training")
 def main(argv):
   """Main method for fintuning: builds, trains, and evaluates t5."""
   tf.disable_v2_behavior()
-  tf.compat.v1.enable_eager_execution()
   warnings.filterwarnings("ignore", category=DeprecationWarning)
   
   pretrained_dir = os.path.join(constants.BASE_PRETRAINED_DIR, FLAGS.size)
@@ -54,7 +53,6 @@ def main(argv):
 
   print("--------DETECTING TPUs----")
   try:
-    TPU_TOPOLOGY = "2x2"
     tpu = tf.distribute.cluster_resolver.TPUClusterResolver()  # TPU detection
     TPU_ADDRESS = tpu.get_master()
     print('Running on TPU:', TPU_ADDRESS)
@@ -109,7 +107,7 @@ def main(argv):
   model = t5.models.MtfModel(
       model_dir=model_dir,
       tpu=TPU_ADDRESS,
-      tpu_topology=TPU_TOPOLOGY,
+      tpu_topology=FLAGS.tpu_topology,
       model_parallelism=model_parallelism,
       batch_size=train_batch_size,
       sequence_length={"inputs": constants.INPUT_LENGTH, "targets": constants.TARGET_LENGTH},
@@ -124,7 +122,6 @@ def main(argv):
         pretrained_model_dir=pretrained_dir,
         finetune_steps=FLAGS.steps
     )
-  tf.compat.v1.disable_eager_execution()
 
   # Evaluate and save predictions
   if FLAGS.mode == "all" or FLAGS.mode == "evaluate":
