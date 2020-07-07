@@ -36,7 +36,7 @@ module located in trainer.fintune:
     --module-name trainer.finetune \
     --region us-central1 \
     --runtime-version=2.1 \
-    --python-version=3.7 \
+    --python-version=3.python 7 \
     --scale-tier=BASIC_TPU \
     -- \
     --steps=6000 \
@@ -54,6 +54,24 @@ If you have access to the gcloud bucket, you can start tensorboard by connecting
 
 `tensorboard --logdir=gs://e2e_central/models/base --port=8080`
 
+## Setting Up Dev Enviroment:
+
+if you want to set up a dev enviroment with the right dependencies installed, you can create a virtual enviroment and install the requirements.txt. Any type of virtual enviroment should work.
+
+Example:
+
+`python3 -m venv ~/envs/e2e`
+
+`source ~/envs/e2e/bin/activate`
+
+`pip3 install -r requirements.txt`
+
+
 ## Rebuilding the training data:
 
-if you wanbted to reformat the training data you can use `python3 -m data.build_redial` to run the script to format the redial dataset. This shouldn't be necessary (the data is already formatted).
+if you wanted to reformat the training data you can use `python3 -m data.build_redial` to run the script to format the redial dataset. This shouldn't be necessary (the data is already formatted).
+
+## To Run Tests
+
+You can use the command `python3 -m unittest` to run all the tests or `python3 -m unittest test/$SPECIFIC_TEST` to run a specific test
+

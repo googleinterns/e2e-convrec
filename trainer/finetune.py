@@ -14,67 +14,59 @@
 """Script for Running, Training, and Evaluating E2E Convrec Experiments."""
 
 # SETUP
-import functools
 import os
-import time
 import warnings
-import tensorflow.compat.v1 as tf
-import tensorflow_datasets as tfds
-import t5
-from contextlib import contextmanager
-import logging as py_logging
-import gzip
 import json
-import os
-import tensorboard as tb
-import random
-import nltk
-import sacrebleu
 from absl import app
 from absl import flags
+from absl import logging
+import tensorflow.compat.v1 as tf
+import t5
 from trainer import preprocessing, constants, metrics
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('steps', 6000, "Finetuning training steps.")
-flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"], "model size")
+flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
+                  "model size")
 flags.DEFINE_string("name", "default", "name/description of model  version")
-flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"], "run mode: train, evaluate, or all")
+flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"],
+                  "run mode: train, evaluate, or all")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
 flags.DEFINE_string("tpu_topology", "2x2", "topology of tpy used for training")
-def main(argv):
+def main(_):
   """Main method for fintuning: builds, trains, and evaluates t5."""
   tf.disable_v2_behavior()
   warnings.filterwarnings("ignore", category=DeprecationWarning)
-  
   pretrained_dir = os.path.join(constants.BASE_PRETRAINED_DIR, FLAGS.size)
   model_dir = os.path.join(constants.MODELS_DIR, FLAGS.size, FLAGS.name)
 
-  print("--------DETECTING TPUs----")
+  logging.info("----DETECTING TPUs----")
   try:
     tpu = tf.distribute.cluster_resolver.TPUClusterResolver()  # TPU detection
-    TPU_ADDRESS = tpu.get_master()
-    print('Running on TPU:', TPU_ADDRESS)
+    tpu_address = tpu.get_master()
+    logging.info('Running on TPU:', tpu_address)
   except ValueError:
     raise BaseException('ERROR: Not connected to a TPU runtime')
 
   # load or build data
   if tf.io.gfile.exists(constants.RD_TSV_PATH["train"]) \
     and tf.io.gfile.exists(constants.RD_TSV_PATH["validation"]):
-    print("TSV's Found")
+    logging.info("TSV's Found")
     # Used cached data and counts.
     tf.logging.info("Loading Redial from cache.")
     num_rd_examples = json.load(tf.io.gfile.GFile(constants.RD_COUNTS_PATH))
   else:
-    print("TSV's Not Found")
+    logging.info("TSV's Not Found")
     # Create TSVs and get counts.
     tf.logging.info("Generating Redial TSVs.")
     num_rd_examples = {}
     for split, fname in constants.RD_SPLIT_FNAMES.items():
-      print(os.path.join(constants.RD_JSONL_DIR, fname))
+      logging.info(os.path.join(constants.RD_JSONL_DIR, fname))
       num_rd_examples[split] = preprocessing.rd_jsonl_to_tsv(
-          os.path.join(constants.RD_JSONL_DIR, fname), constants.RD_TSV_PATH[split])
+          os.path.join(constants.RD_JSONL_DIR, fname),
+          constants.RD_TSV_PATH[split])
     json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
   t5.data.TaskRegistry.add(
@@ -87,7 +79,7 @@ def main(argv):
       # Use the same vocabulary that we used for pre-training.
       sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
       # Lowercase targets before computing metrics.
-      postprocess_fn=t5.data.postprocessors.lower_text, 
+      postprocess_fn=t5.data.postprocessors.lower_text,
       # We'll use accuracy as our evaluation metric.
       metric_fns=[t5.evaluation.metrics.accuracy, t5.evaluation.metrics.bleu],
       # Not required, but helps for mixing and auto-caching.
@@ -106,11 +98,12 @@ def main(argv):
   # The models from the t5 paper are based on the Mesh Tensorflow Transformer.
   model = t5.models.MtfModel(
       model_dir=model_dir,
-      tpu=TPU_ADDRESS,
+      tpu=tpu_address,
       tpu_topology=FLAGS.tpu_topology,
       model_parallelism=model_parallelism,
       batch_size=train_batch_size,
-      sequence_length={"inputs": constants.INPUT_LENGTH, "targets": constants.TARGET_LENGTH},
+      sequence_length={"inputs": constants.INPUT_LENGTH,
+                       "targets": constants.TARGET_LENGTH},
       learning_rate_schedule=FLAGS.learning_rate,
       save_checkpoints_steps=2000,
       keep_checkpoint_max=keep_checkpoint_max,
@@ -125,7 +118,7 @@ def main(argv):
 
   # Evaluate and save predictions
   if FLAGS.mode == "all" or FLAGS.mode == "evaluate":
-    model.batch_size = train_batch_size * 4 # a larger batch size requires less memory.
+    model.batch_size = train_batch_size * 4 # larger batch size to save memory.
     model.eval(
         mixture_or_task_name="rd_recommendations",
         checkpoint_steps="all"
@@ -140,10 +133,10 @@ def main(argv):
   saved_model_path = model.export(
       export_dir,
       checkpoint_step=-1,  # use most recent
-      beam_size=FLAGS.beam_size,  # no beam search
-      temperature=FLAGS.temperature,  # sample according to predicted distribution
+      beam_size=FLAGS.beam_size,
+      temperature=FLAGS.temperature,
   )
-  print("Model saved to:", saved_model_path)
+  logging.info("Model saved to:", saved_model_path)
 
 if __name__ == "__main__":
   app.run(main)

@@ -13,15 +13,18 @@
 # limitations under the License.
 """Unit Tests for build redial script"""
 import unittest
+from absl import logging
 from data import build_redial
 
 class TestPreprocessing(unittest.TestCase):
-
-    def test_separate_responses(self):
-        test_inputs = build_redial.read_jsonl("./test/test-data/separate_responses_inputs.jsonl")
-        test_outputs = build_redial.read_jsonl("./test/test-data/separate_responses_outputs.jsonl")
-        self.assertEqual(build_redial.separate_responses(test_inputs), test_outputs)
-        print(build_redial.separate_responses(test_inputs))
+  def test_separate_responses(self):
+    test_data_files = {
+        "inputs": "./test/test-data/separate_responses_inputs.jsonl",
+        "outputs": "./test/test-data/separate_responses_outputs.jsonl"}
+    test_inputs = build_redial.read_jsonl(test_data_files["inputs"])
+    test_outputs = build_redial.read_jsonl(test_data_files["outputs"])
+    self.assertEqual(build_redial.separate_responses(test_inputs), test_outputs)
+    logging.info(build_redial.separate_responses(test_inputs))
 
 if __name__ == '__main__':
-    unittest.main()
+  unittest.main()

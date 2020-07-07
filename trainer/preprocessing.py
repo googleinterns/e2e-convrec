@@ -12,17 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Preprocessing and Infeeding Tools For Redial and MovieLens Data."""
-
-import tensorflow.compat.v1 as tf
-import tensorflow_datasets as tfds
 import functools
-import os
 import json
+from absl import logging
+import tensorflow.compat.v1 as tf
 from trainer import constants
 
 def rd_jsonl_to_tsv(in_fname, out_fname):
   """Converts the redial jsonl to a tsv."""
-  print("Reading: " + in_fname)
+  logging.info("Reading: " + in_fname)
   def fix_spacing(text):
     """Removes extra spaces."""
     # Remove incorrect spacing around punctuation.
@@ -56,7 +54,8 @@ def rd_dataset_fn(split, shuffle_files=False):
 
   # Load lines from the text file as examples.
   ds = tf.data.TextLineDataset(constants.RD_TSV_PATH[split])
-  # Split each "<conversation>\t<response>" example into (conversation, response) tuple.
+  # Split each "<conversation>\t<response>" example into
+  # a (conversation, response) tuple.
   ds = ds.map(
       functools.partial(tf.io.decode_csv, record_defaults=["", ""],
                         field_delim="\t", use_quote_delim=False),
@@ -77,8 +76,8 @@ def conversation_preprocessor(ds):
     return {
         "inputs":
             tf.strings.join(
-                ["movie recommendation: ", normalize_text(ex["conversation"])]),
+                ["redial conversation: ", normalize_text(ex["conversation"])]),
         "targets": normalize_text(ex["response"])
     }
-  return ds.map(to_inputs_and_targets, 
+  return ds.map(to_inputs_and_targets,
                 num_parallel_calls=tf.data.experimental.AUTOTUNE)
