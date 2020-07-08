@@ -76,7 +76,7 @@ def save_metrics(task_name, model_dir):
   sb_bs = str(sacrebleu.corpus_bleu(predictions, [targets]))
 
   scores = {"nltk_bleu_score": nltk_bs, "sacrebleu_blue_score": sb_bs}
-  logging.info("CHECKPOINT: %d" % int(results["checkpoint_steps"]))
+  logging.info("CHECKPOINT: %d" % int(results["checkpoint_step"]))
   logging.info(scores)
   # Writes to $MODEL_DIR$/validation_eval/metrics$CHECKPOINT_NUMBER.json
   metrics_path = os.path.join(
