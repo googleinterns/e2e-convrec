@@ -1,0 +1,3 @@
+{"messages": [{"text": "start", "senderWorkerId": 14}, {"text": "multi word response", "senderWorkerId": 1}, {"text": "middle", "senderWorkerId": 14}, {"text": "end", "senderWorkerId": 1}], "respondentWorkerId": 1, "initiatorWorkerId": 14}
+{"messages": [{"text": "start", "senderWorkerId": 0}, {"text": "multi word response", "senderWorkerId": 1}, {"text": "middle", "senderWorkerId": 1}, {"text": "end", "senderWorkerId": 0}], "respondentWorkerId": 0, "initiatorWorkerId": 1}
+{"messages": [{"text": "start", "senderWorkerId": -1}, {"text": "multi word response", "senderWorkerId": -1}, {"text": "middle", "senderWorkerId": 0}, {"text": "end", "senderWorkerId": -1}], "respondentWorkerId": 0, "initiatorWorkerId": -1}

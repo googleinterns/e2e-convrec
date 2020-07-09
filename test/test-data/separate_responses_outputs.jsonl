@@ -1,0 +1,5 @@
+{"conversation": "[User] start", "response": "multi word response"}
+{"conversation": "[User] start [Assistant] multi word response [User] middle", "response": "end"}
+{"conversation": "", "response": "start"}
+{"conversation": "[Assistant] start [User] multi word response middle", "response": "end"}
+{"conversation": "[User] start multi word response", "response": "middle"}
