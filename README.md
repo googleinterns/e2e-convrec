@@ -30,13 +30,14 @@ Apache header:
 To post a job, you need to use the gcloud jobs submit training command to post a job using the
 module located in trainer.fintune:
 
-    gcloud ai-platform jobs submit training new_default \
+    PROJECT_NAME=$USER_test_job && \
+    gcloud ai-platform jobs submit training $PROJECT_NAME \
     --staging-bucket gs://e2e_central \
     --package-path ./trainer \
     --module-name trainer.finetune \
     --region us-central1 \
     --runtime-version=2.1 \
-    --python-version=3.python 7 \
+    --python-version=3.7 \
     --scale-tier=BASIC_TPU \
     -- \
     --steps=6000 \
@@ -46,7 +47,12 @@ module located in trainer.fintune:
 
 steps, size, name, and mode are user flags which default to 6000, base, default, and all. Size has to be either small, base, large, 3B, or 11B. Mode can be set to train
 (for finetuning), evaluation (for evaulating the most recnt checkpoint), or all (for both). if there is already a model at gs://e2e_central/models/$SIZE/$NAME, 
-the program will continue training from that model's most recent checkpoint
+the program will continue training from that model's most recent checkpoint.
+
+PROJECT_NAME is a unique identifier to the job instance. You can find the existing/used names in:
+
+    gcloud ai-platform jobs list
+
 
 ## Running tensorboard:
 
@@ -60,9 +66,13 @@ if you want to set up a dev enviroment with the right dependencies installed, yo
 
 Example:
 
-`python3 -m venv ~/envs/e2e`
+`cd ~ && git clone git@github.com:googleinterns/e2e-convrec.git`
 
-`source ~/envs/e2e/bin/activate`
+`python3 -m venv ~/e2e-convrec`
+
+`cd e2e-convrec`
+
+`source bin/activate`
 
 `pip3 install -r requirements.txt`
 
