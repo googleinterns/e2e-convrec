@@ -7,9 +7,12 @@ import pandas as pd
 from collections import defaultdict
 import tqdm
 import matplotlib.pyplot as plt
+import tensorflow.compat.v1 as tf
+from sklearn.model_selection import train_test_split
 
 flags.DEFINE_string("movielens_dir", "./data/movielens", "path to the movielens folder")
 flags.DEFINE_enum("dataset", "both", ["tags", "sequences", "both"], "which dataset to generate from movielens: tags, movie sequences, or both")
+flags.DEFINE_string("output_dir", "./data/movielens", "path to write datasets")
 FLAGS = flags.FLAGS
 
 def main(_):
@@ -50,38 +53,29 @@ def main(_):
     tags_dict[movie_decoder[movieId]].append(tag_decoder[tagId])
   
   logging.info("Generated tag lists for %d movies" % len(tags_dict))
-  print(list(tags_dict.items())[-5:])
 
   for movie, tags in tags_dict.items():
     tags_dict[movie].extend(genre_decoder[movie].split("|"))
   
   print(list(tags_dict.items())[-5:])
-
-  lengths = [len(x) for x in list(tags_dict.values())]
-  print(lengths[-5:])
-  plt.hist(lengths, bins=80)
-  start, end = plt.xlim()
-  plt.xticks(np.arange(0, 80, 5))
-  plt.savefig("lengths.png")
   
   for movie, tags in list(tags_dict.items())[:10]:
     if len(tags) > 5:
       print(movie, ", ".join(tags))
     tags_dict[movie].extend(genre_decoder[movie].split("|"))
 
-  # print(listed)
-  # dicted = dict(listed)
-  # print(dicted)
-  # relisted = list(dicted.values())
-  # print(relisted)
-  # test = list(dict(map(rearrange, tqdm.tqdm(genome_scores.values))).values())
-  # print(test[0:2])
-def rearrange(line):
-  return (int(line[0]), [int(line[1]), line[2]])
-#   for i, row in tqdm.tqdm(genome_scores.iterrows()):
-#     scores_dict[row["movieId"]].append([row["tagId"], row["relevance"]])
-  
-#   print(scores_dict.values[:10])
+  tags_formatted = ["\t".join((movie, ", ".join(tags))) for movie, tags in list(tags_dict.items())]
+
+  tags_train, tags_test = train_test_split(tags_formatted, test_size=.2, random_state=1)
+
+  write_tsv(tags_train, os.path.join(FLAGS.output_dir, "ml-tags-train.tsv"))
+  write_tsv(tags_test, os.path.join(FLAGS.output_dir, "ml-tags-test.tsv"))
+
+
+def write_tsv(arr, filepath):
+  with tf.io.gfile.GFile(filepath, 'w') as f:
+    for line in arr:
+      f.write(line + "\n")
 
 def parse_user_seq(line):
   sequence_string = line.strip('()').split(',', 1)[1]
