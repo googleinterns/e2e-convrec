@@ -1,5 +1,10 @@
-{"conversation": "[User] start", "response": "multi word response"}
-{"conversation": "[User] start [Assistant] multi word response [User] middle", "response": "end"}
-{"conversation": "", "response": "start"}
-{"conversation": "[Assistant] start [User] multi word response middle", "response": "end"}
-{"conversation": "[User] start multi word response", "response": "middle"}
+{"conversation": "[User] start", "response": "multi word response", "metadata": {"user_movies" : [], "assistant_movies" : []}}
+{"conversation": "[User] start [Assistant] multi word response [User] middle", "response": "end", "metadata": {"user_movies" : [], "assistant_movies" : []}}
+{"conversation": "", "response": "start", "metadata": {"user_movies" : [], "assistant_movies" : []}}
+{"conversation": "[Assistant] start [User] multi word response middle", "response": "end", "metadata": {"user_movies" : [], "assistant_movies" : []}}
+{"conversation": "[User] start multi word response", "response": "middle", "metadata": {"user_movies" : [], "assistant_movies" : []}}
+{"conversation": "", "response": "start", "metadata": {"user_movies" : ["Movie B"], "assistant_movies" : ["Movie A", "Movie C"]}}
+{"conversation": "", "response": "start", "metadata": {"user_movies" : ["Movie B"], "assistant_movies" : ["Movie A", "Movie C"]}}
+{"conversation": "", "response": "start", "metadata": {"user_movies" : ["Movie B"], "assistant_movies" : ["Movie A", "Movie C"]}}
+{"conversation": "", "response": "start", "metadata": {"user_movies" : ["Movie B"], "assistant_movies" : ["Movie A", "Movie C"]}}
+{"conversation": "", "response": "start", "metadata": {"user_movies" : ["Movie B"], "assistant_movies" : ["Movie A", "Movie C"]}}

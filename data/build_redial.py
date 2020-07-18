@@ -22,6 +22,7 @@ from tqdm import tqdm
 from absl import app
 from absl import flags
 from absl import logging
+import tensorflow.compat.v1 as tf
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string("data_dir", "./data/redial",
@@ -90,7 +91,7 @@ def length_summary(data_dir):
 
 def read_jsonl(filename):
   """Reads a jsonl file and returns as array of dicts."""
-  with open(filename, 'r') as json_file:
+  with tf.io.gfile.GFile(filename, 'r') as json_file:
     json_list = list(json_file)
   data = []
   for json_str in tqdm(json_list):
@@ -130,6 +131,27 @@ def separate_responses(dataset):
     conversation = "" # the conversation history up until a turn
     turn = "" # consecutive messages made by the same actor
     prev_id = None
+    metadata = {
+        "user_movies": [],
+        "assistant_movies": []
+    }
+
+    # The initator and respondent fill out surveys labeling the movies mentioned
+    # This combines their answers to account for partial responses and defaults
+    # to the initiator's answer in the case of an inconsistency
+    combined_responses = {**dict(dialogue["respondentQuestions"]),
+                          **dict(dialogue["initiatorQuestions"])}
+
+    if dialogue["movieMentions"] != []:
+      for movie_id, title in dialogue["movieMentions"].items():
+        # if the movie is not labeled, default to "assistant_movies"
+        if title is None:
+          title = ""
+        if movie_id not in combined_responses or \
+            combined_responses[movie_id]["suggested"]:
+          metadata["assistant_movies"].append(title.lower())
+        else:
+          metadata["user_movies"].append(title.lower())
 
     # Adding a dummy message from the the initiator makes sure we iterate
     # through the end of the array
@@ -142,7 +164,7 @@ def separate_responses(dataset):
           # if the turn has switched to the user, add the
           # (conversation, response) pair to response
           result.append({"conversation": conversation.strip(),
-                         "response": turn.strip()})
+                         "response": turn.strip(), "metadata": metadata})
           conversation += " [Assistant] " + turn.strip()
         else:
           conversation += " [User] " + turn.strip()
@@ -159,6 +181,17 @@ def array_preview(name, arr):
     logging.info("shape: " + str(np.shape(arr)))
     logging.info("first element :")
     logging.info(arr[0])
+
+def conversation_preview(example):
+  conversation = example["conversation"] + " [Assistant] " + example["response"]
+  for message in re.split(r"\[([^]]+)\]", conversation):
+    print(message)
+
+  print("USER MENTIONED MOVIES: ")
+  print(example["metadata"]["user_movies"])
+
+  print("ASSISTANT MENTIONED MOVIES: ")
+  print(example["metadata"]["assistant_movies"])
 
 def quartile_summary(arr):
   "Prints the five number summary for a 1d array"
