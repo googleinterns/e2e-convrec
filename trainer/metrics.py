@@ -16,13 +16,16 @@
 import os
 import collections
 import json
+import re
 from absl import logging
 import tensorflow.compat.v1 as tf
 import t5
 import nltk
 import sacrebleu
 import tensorflow_datasets as tfds
+from tensor2tensor.utils import bleu_hook
 from trainer import constants
+from data import build_redial
 
 def _prediction_file_to_ckpt(path):
   """Extract the global step from a prediction filename."""
@@ -82,4 +85,117 @@ def save_metrics(task_name, model_dir):
   metrics_path = os.path.join(
       model_dir,
       "validation_eval/metrics" + str(results["checkpoint_step"]) + ".json")
-  json.dump(scores, tf.io.gfile.GFile(metrics_path, "w"))
+  json.dump({"nltk_bleu_score": nltk_bs, "sacrebleu_blue_score": sb_bs,
+             "recall@1": 0}, tf.io.gfile.GFile(metrics_path, "w"))
+
+def sklearn_recall(targets, predictions):
+  """Uses the built in t5 sklearn_metrics_wrapper to calculate sklearn recall@1
+
+  Args:
+    targets: a list of strings, the target from the validation set
+    preditcions: a list of strings, the model predictions
+
+  Returns:
+    a dictionary: {"sklearn_recall": recall_value}
+  """
+  prfs = t5.evaluation.metrics.sklearn_metrics_wrapper(
+      "precision_recall_fscore_support",
+      average='micro')(targets, predictions) \
+      ["precision_recall_fscore_support"]
+  return {"sklearn_recall": prfs[1]}
+
+def t2t_bleu(targets, predictions):
+  """Tokenizes with the bleu_tokenize method from the t2t library then
+  calls the compute_bleu function
+
+  Args:
+    targets: a list of strings, the target from the validation set
+    preditcions: a list of strings, the model predictions
+
+  Returns:
+    a dictionary: {"t2t_bleu": bleu_value}
+  """
+  targets_tokens = [bleu_hook.bleu_tokenize(x) for x in targets]
+  predictions_tokens = [bleu_hook.bleu_tokenize(x) for x in predictions]
+  return {"t2t_bleu": 100 * bleu_hook.compute_bleu(targets_tokens,
+                                                   predictions_tokens)}
+
+def replace_titles(targets, predictions):
+  """Replaces titles with a __unk__ token. Returns an updated
+  (targets, predictions) tuple"""
+  replace_fn = \
+    lambda text: re.sub(r"\@([^@]*\([^@]*\)[^@]*)\@", "__unk__", text)
+  return (list(map(replace_fn, targets)), list(map(replace_fn, predictions)))
+
+def bleu_no_titles(targets, predictions):
+  """Bleu metric with titles removed.
+
+  Args:
+    targets: a list of strings, the target from the validation set
+    preditcions: a list of strings, the model predictions
+
+  Returns:
+    a dictionary: {"bleu_no_titles": bleu_value}
+  """
+  tars_no_titles, preds_no_titles = replace_titles(targets, predictions)
+  return {"bleu_no_titles": t2t_bleu(tars_no_titles,
+                                     preds_no_titles)["t2t_bleu"]}
+
+def isolate_titles(targets, predictions):
+  """Maps each target and prediction to a list of movies metioned.
+
+  Args:
+    targets: a list of strings, the target from the validation set
+    preditcions: a list of strings, the model predictions
+
+  Returns:
+    a tuple containing a list of lists for both target and prediction titles
+  """
+  all_target_titles = []
+  all_prediction_titles = []
+  for tar, pred in zip(targets, predictions):
+    target_titles = re.findall(r"\@([^@]*\([^@]*\)[^@]*)\@", tar)
+    prediction_titles = re.findall(r"\@([^@]*\([^@]*\)[^@]*)\@", pred)
+    all_target_titles.append([x.strip() for x in target_titles])
+    all_prediction_titles.append([x.strip() for x in prediction_titles])
+  return all_target_titles, all_prediction_titles
+
+def recall_from_metadata(prediction_titles, all_metadata):
+  """Calculates recall for movie suggestions in redial.
+
+  Args:
+    prediction_titles: a list of list containing the titles mentioned in
+    each prediciton.
+
+  Returns:
+    the recall value, a float between 0 and 100
+  """
+  matches = 0.0
+  total = 0.0
+  for mentioned_movies, metadata in zip(prediction_titles, all_metadata):
+    mentioned_movies = set(mentioned_movies) # get rid of duplicates
+    # Recommendations are movies not menioned by the user themselves
+    recs = set(filter(lambda x, md=metadata: x not in md["user_movies"],
+                      mentioned_movies))
+    # True positives are the recommendations which match the targets
+    tp = set(filter(lambda x, md=metadata: x in md["assistant_movies"],
+                    recs))
+    matches += len(tp)
+    total += len(recs)
+  return 0 if total == 0 else 100 * matches / total
+
+def rd_recall(targets, predictions):
+  """Wrapper for rd_recall metric. Runs recall on movie mentions within the
+  predictions and correct recommendations from the validation metadata
+
+  Args:
+    targets: a list of strings, the target from the validation set
+    preditcions: a list of strings, the model predictions
+
+  Returns:
+    a dictionary: {"rd_recall": recall_value}
+  """
+  prediction_titles = isolate_titles(targets, predictions)[1]
+  dataset = build_redial.read_jsonl(constants.RD_JSONL_PATH["validation"])
+  all_metadata = [example["metadata"] for example in dataset]
+  return {"rd_recall": recall_from_metadata(prediction_titles, all_metadata)}
