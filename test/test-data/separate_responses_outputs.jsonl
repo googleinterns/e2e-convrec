@@ -3,8 +3,8 @@
 {"conversation": "", "response": "start", "metadata": {"user_movies" : [], "assistant_movies" : []}}
 {"conversation": "[Assistant] start [User] multi word response middle", "response": "end", "metadata": {"user_movies" : [], "assistant_movies" : []}}
 {"conversation": "[User] start multi word response", "response": "middle", "metadata": {"user_movies" : [], "assistant_movies" : []}}
-{"conversation": "", "response": "start", "metadata": {"user_movies" : ["Movie B"], "assistant_movies" : ["Movie A", "Movie C"]}}
-{"conversation": "", "response": "start", "metadata": {"user_movies" : ["Movie B"], "assistant_movies" : ["Movie A", "Movie C"]}}
-{"conversation": "", "response": "start", "metadata": {"user_movies" : ["Movie B"], "assistant_movies" : ["Movie A", "Movie C"]}}
-{"conversation": "", "response": "start", "metadata": {"user_movies" : ["Movie B"], "assistant_movies" : ["Movie A", "Movie C"]}}
-{"conversation": "", "response": "start", "metadata": {"user_movies" : ["Movie B"], "assistant_movies" : ["Movie A", "Movie C"]}}
+{"conversation": "", "response": "start", "metadata": {"user_movies" : ["movie b"], "assistant_movies" : ["movie a", "movie c"]}}
+{"conversation": "", "response": "start", "metadata": {"user_movies" : ["movie b"], "assistant_movies" : ["movie a", "movie c"]}}
+{"conversation": "", "response": "start", "metadata": {"user_movies" : ["movie b"], "assistant_movies" : ["movie a", "movie c"]}}
+{"conversation": "", "response": "start", "metadata": {"user_movies" : ["movie b"], "assistant_movies" : ["movie a", "movie c"]}}
+{"conversation": "", "response": "start", "metadata": {"user_movies" : ["movie b"], "assistant_movies" : ["movie a", "movie c"]}}
