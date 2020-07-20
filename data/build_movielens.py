@@ -20,10 +20,10 @@ def main(_):
   # Define filepaths
   paths = {
     "sequences": glob.glob(os.path.join(FLAGS.movielens_dir, "ml_user_sequences/*")),
-    "movies": glob.glob(os.path.join(FLAGS.movielens_dir, "ml-latest/movies.csv"))[0],
-    "tags": glob.glob(os.path.join(FLAGS.movielens_dir, "ml-latest/tags.csv"))[0],
-    "genome_tags": glob.glob(os.path.join(FLAGS.movielens_dir, "ml-latest/genome-tags.csv"))[0],
-    "genome_scores": glob.glob(os.path.join(FLAGS.movielens_dir, "ml-latest/genome-scores.csv"))[0]
+    "movies": glob.glob(os.path.join(FLAGS.movielens_dir, "ml-25m/movies.csv"))[0],
+    "tags": glob.glob(os.path.join(FLAGS.movielens_dir, "ml-25m/tags.csv"))[0],
+    "genome_tags": glob.glob(os.path.join(FLAGS.movielens_dir, "ml-25m/genome-tags.csv"))[0],
+    "genome_scores": glob.glob(os.path.join(FLAGS.movielens_dir, "ml-25m/genome-scores.csv"))[0]
   }
   
   # Load the movie and tag id files
@@ -70,7 +70,6 @@ def main(_):
 
   write_tsv(tags_train, os.path.join(FLAGS.output_dir, "ml-tags-train.tsv"))
   write_tsv(tags_test, os.path.join(FLAGS.output_dir, "ml-tags-test.tsv"))
-
 
 def write_tsv(arr, filepath):
   with tf.io.gfile.GFile(filepath, 'w') as f:
