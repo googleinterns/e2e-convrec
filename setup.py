@@ -20,12 +20,13 @@ setup(
     version='1.0',
     description='End to End Conversational Recommendations Experiments',
     
-    packages=find_packages(exclude=["data"]),
+    packages=find_packages(exclude=[]),
     include_package_data=True,
     install_requires=[
         't5',
         'nltk',
-        'sacrebleu'
+        'sacrebleu',
+        'tensor2tensor'
     ],
     extras_require={
         'tensorflow': ['tensorflow>=2.0.0'],

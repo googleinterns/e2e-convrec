@@ -31,6 +31,8 @@ flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
 flags.DEFINE_string("name", "default", "name/description of model  version")
 flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"],
                   "run mode: train, evaluate, or all")
+flags.DEFINE_enum("task", "redial", ["redial", "ml_sequences", "ml_tags", "combined"],
+                  "data tasks: redial, movielens, or combined")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
@@ -69,21 +71,59 @@ def main(_):
           constants.RD_TSV_PATH[split])
     json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
-  t5.data.TaskRegistry.add(
-      "rd_recommendations",
-      # Supply a function which returns a tf.data.Dataset.
-      dataset_fn=preprocessing.rd_dataset_fn,
-      splits=["train", "validation"],
-      # Supply a function which preprocesses text from the tf.data.Dataset.
-      text_preprocessor=[preprocessing.conversation_preprocessor],
-      # Use the same vocabulary that we used for pre-training.
-      sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
-      # Lowercase targets before computing metrics.
-      postprocess_fn=t5.data.postprocessors.lower_text,
-      # We'll use accuracy as our evaluation metric.
-      metric_fns=[t5.evaluation.metrics.accuracy, t5.evaluation.metrics.bleu],
-      # Not required, but helps for mixing and auto-caching.
-      num_input_examples=num_rd_examples)
+  if FLAGS.task == "redial" or FLAGS.task == "combined":
+    t5.data.TaskRegistry.add(
+        "rd_recommendations",
+        # Supply a function which returns a tf.data.Dataset.
+        dataset_fn=preprocessing.dataset_fn_wrapper("rd_recommendations"),
+        splits=["train", "validation"],
+        # Supply a function which preprocesses text from the tf.data.Dataset.
+        text_preprocessor=[preprocessing.preprocessor_wrapper("rd_recommendations")],
+        # Use the same vocabulary that we used for pre-training.
+        sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
+        # Lowercase targets before computing metrics.
+        postprocess_fn=t5.data.postprocessors.lower_text,
+        # We'll use accuracy as our evaluation metric.
+        metric_fns=[metrics.t2t_bleu, metrics.bleu_no_titles,
+                    metrics.rd_recall])
+
+  if FLAGS.task == "ml_sequences" or FLAGS.task == "combined":
+    t5.data.TaskRegistry.add(
+        "ml_sequences",
+        # Supply a function which returns a tf.data.Dataset.
+        dataset_fn=preprocessing.dataset_fn_wrapper("ml_sequences"),
+        splits=["train", "validation"],
+        # Supply a function which preprocesses text from the tf.data.Dataset.
+        text_preprocessor=[preprocessing.preprocessor_wrapper("ml_sequences")],
+        # Use the same vocabulary that we used for pre-training.
+        sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
+        # Lowercase targets before computing metrics.
+        postprocess_fn=t5.data.postprocessors.lower_text,
+        # We'll use accuracy as our evaluation metric.
+        metric_fns=[t5.evaluation.metrics.accuracy, metrics.sklearn_recall])
+  
+  if FLAGS.task == "ml_tags" or FLAGS.task == "combined":
+    t5.data.TaskRegistry.add(
+        "ml_tags",
+        # Supply a function which returns a tf.data.Dataset.
+        dataset_fn=preprocessing.dataset_fn_wrapper("ml_tags"),
+        splits=["train", "validation"],
+        # Supply a function which preprocesses text from the tf.data.Dataset.
+        text_preprocessor=[preprocessing.preprocessor_wrapper("ml_tags", ml_tags_version="normal")],
+        # Use the same vocabulary that we used for pre-training.
+        sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
+        # Lowercase targets before computing metrics.
+        postprocess_fn=t5.data.postprocessors.lower_text,
+        # We'll use accuracy as our evaluation metric.
+        metric_fns=[t5.evaluation.metrics.accuracy, metrics.sklearn_recall])
+
+  if FLAGS.task == "combined":
+    t5.data.MixtureRegistry.remove("combined_recommendations")
+    t5.data.MixtureRegistry.add(
+        "combined_recommendations",
+        ["rd_recommendations", "ml_tags"],
+        default_rate=1.0
+    )
 
   # Set parallelism and batch size to fit on v2-8 TPU (if possible).
   # Limit number of checkpoints to fit within 5GB (if possible).
@@ -109,9 +149,16 @@ def main(_):
       keep_checkpoint_max=keep_checkpoint_max,
   )
 
+  task_names = {
+      "redial": "rd_recommendations",
+      "ml_sequences": "ml_sequences",
+      "ml_tags": "ml_tags",
+      "combined": "combined_recommendations"
+    }
+
   if FLAGS.mode == "all" or FLAGS.mode == "train":
     model.finetune(
-        mixture_or_task_name="rd_recommendations",
+        mixture_or_task_name=task_names[FLAGS.task],
         pretrained_model_dir=pretrained_dir,
         finetune_steps=FLAGS.steps
     )
