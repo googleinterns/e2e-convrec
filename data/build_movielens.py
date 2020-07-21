@@ -9,6 +9,7 @@ import tqdm
 import matplotlib.pyplot as plt
 import tensorflow.compat.v1 as tf
 from sklearn.model_selection import train_test_split
+from functools import reduce
 
 flags.DEFINE_string("movielens_dir", "./data/movielens", "path to the movielens folder")
 flags.DEFINE_enum("dataset", "both", ["tags", "sequences", "both"], "which dataset to generate from movielens: tags, movie sequences, or both")
@@ -66,10 +67,35 @@ def main(_):
 
   tags_formatted = ["\t".join((movie, ", ".join(tags))) for movie, tags in list(tags_dict.items())]
 
+  tags_formatted = list(flat_map(mask_multple, tqdm.tqdm(tags_formatted)))
   tags_train, tags_test = train_test_split(tags_formatted, test_size=.2, random_state=1)
 
-  write_tsv(tags_train, os.path.join(FLAGS.output_dir, "ml-tags-train.tsv"))
-  write_tsv(tags_test, os.path.join(FLAGS.output_dir, "ml-tags-test.tsv"))
+  write_tsv(tags_train, os.path.join(FLAGS.output_dir, "ml-tags-train-masked.tsv"))
+  write_tsv(tags_test, os.path.join(FLAGS.output_dir, "ml-tags-test-masked.tsv"))
+
+def flat_map(func, arr):
+  return reduce(lambda a, b: a + b, map(func, arr))
+
+def mask_multple(ex):
+  result = []
+  for i in range(3):
+    result.append(mask_text(ex))
+  return result
+
+def mask_text(ex):
+  movie, tags = ex.split("\t")
+  tokens = np.append(movie, tags.split(", "))
+  indecies = np.random.choice(len(tokens), int(np.ceil(len(tokens)*.15)))
+  sentinel_tokens = ["<extra_id_%d>" % x for x in range(len(indecies) + 1)]
+
+  targets = []
+
+  for idx, st in zip(indecies, sentinel_tokens):
+    targets.extend((st, tokens[idx]))
+    tokens[idx] = st
+  targets.append(sentinel_tokens[-1]) # Add final mask token
+
+  return "\t".join([", ".join(tokens), ", ".join(targets)])
 
 def write_tsv(arr, filepath):
   with tf.io.gfile.GFile(filepath, 'w') as f:
