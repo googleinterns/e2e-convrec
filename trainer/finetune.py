@@ -33,6 +33,8 @@ flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"],
                   "run mode: train, evaluate, or all")
 flags.DEFINE_enum("task", "redial", ["redial", "ml_sequences", "ml_tags", "combined"],
                   "data tasks: redial, movielens, or combined")
+flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
+                  "version of the tags dataset: normal, reversed, or masked")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
@@ -101,15 +103,16 @@ def main(_):
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy as our evaluation metric.
         metric_fns=[t5.evaluation.metrics.accuracy, metrics.sklearn_recall])
-  
+  ds_version = "ml_tags_masked" if FLAGS.tags_version == "masked" else "ml_tags"
+  pre_version = "reversed" if FLAGS.tags_version == "reversed" else "normal"
   if FLAGS.task == "ml_tags" or FLAGS.task == "combined":
     t5.data.TaskRegistry.add(
         "ml_tags",
         # Supply a function which returns a tf.data.Dataset.
-        dataset_fn=preprocessing.dataset_fn_wrapper("ml_tags_masked"),
+        dataset_fn=preprocessing.dataset_fn_wrapper(ds_version),
         splits=["train", "validation"],
         # Supply a function which preprocesses text from the tf.data.Dataset.
-        text_preprocessor=[preprocessing.preprocessor_wrapper("ml_tags", ml_tags_version="normal")],
+        text_preprocessor=[preprocessing.preprocessor_wrapper("ml_tags", ml_tags_version=pre_version)],
         # Use the same vocabulary that we used for pre-training.
         sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
