@@ -89,7 +89,8 @@ def dataset_fn_wrapper(task):
   path = {
     "rd_recommendations": constants.RD_TSV_PATH,
     "ml_sequences": constants.ML_SEQ_TSV_PATH,
-    "ml_tags": constants.ML_TAGS_TSV_PATH
+    "ml_tags": constants.ML_TAGS_TSV_PATH,
+    "ml_tags_masked": constants.ML_TAGS_MASKED_TSV_PATH
   }[task]
 
   return lambda split, shuffle_files=False: generic_dataset_fn(split, path, shuffle_files)

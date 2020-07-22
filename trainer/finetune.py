@@ -106,7 +106,7 @@ def main(_):
     t5.data.TaskRegistry.add(
         "ml_tags",
         # Supply a function which returns a tf.data.Dataset.
-        dataset_fn=preprocessing.dataset_fn_wrapper("ml_tags"),
+        dataset_fn=preprocessing.dataset_fn_wrapper("ml_tags_masked"),
         splits=["train", "validation"],
         # Supply a function which preprocesses text from the tf.data.Dataset.
         text_preprocessor=[preprocessing.preprocessor_wrapper("ml_tags", ml_tags_version="normal")],
@@ -115,7 +115,7 @@ def main(_):
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy as our evaluation metric.
-        metric_fns=[t5.evaluation.metrics.accuracy, metrics.sklearn_recall])
+        metric_fns=[metrics.t2t_bleu, metrics.sklearn_recall])
 
   if FLAGS.task == "combined":
     t5.data.MixtureRegistry.remove("combined_recommendations")
@@ -167,10 +167,10 @@ def main(_):
   if FLAGS.mode == "all" or FLAGS.mode == "evaluate":
     model.batch_size = train_batch_size * 4 # larger batch size to save memory.
     model.eval(
-        mixture_or_task_name="rd_recommendations",
+        mixture_or_task_name=task_names[FLAGS.task],
         checkpoint_steps="all"
     )
-    metrics.save_metrics("rd_recommendations", model_dir)
+    # metrics.save_metrics("rd_recommendations", model_dir)
 
 
   # Export the SavedModel

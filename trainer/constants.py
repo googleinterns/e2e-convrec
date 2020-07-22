@@ -21,9 +21,9 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 BASE_PRETRAINED_DIR = "gs://t5-data/pretrained_models"
 RD_JSONL_DIR = "gs://e2e_central/data/redial/"
-RD_SPLIT_FNAMES = {
-    "train": "rd-train-formatted.jsonl",
-    "validation": "rd-test-formatted.jsonl"
+RD_JSONL_PATH = {
+    "train": os.path.join(DATA_DIR, "rd-train-formatted.jsonl"),
+    "validation": os.path.join(DATA_DIR, "rd-test-formatted.jsonl")
 }
 RD_COUNTS_PATH = os.path.join(DATA_DIR, "rd-counts.json")
 RD_TSV_PATH = {
@@ -37,4 +37,8 @@ ML_SEQ_TSV_PATH = {
 ML_TAGS_TSV_PATH = {
     "train": os.path.join(DATA_DIR, "ml-tags-train.tsv"),
     "validation": os.path.join(DATA_DIR, "ml-tags-test.tsv")
+}
+ML_TAGS_MASKED_TSV_PATH = {
+    "train": os.path.join(DATA_DIR, "ml-tags-train-masked.tsv"),
+    "validation": os.path.join(DATA_DIR, "ml-tags-test-masked.tsv")
 }
