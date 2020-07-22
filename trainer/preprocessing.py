@@ -139,7 +139,7 @@ def preprocessor_wrapper(task, ml_tags_version="normal"):
   if task == "movielens_tags":
     custom_function = {
       "normal": None,
-      "reverse": reverse_example,
+      "reversed": reverse_example,
       # "mask": mask_text
     }[ml_tags_version]
   return lambda ds: generic_preprocessor(ds, label, custom_function=custom_function)
