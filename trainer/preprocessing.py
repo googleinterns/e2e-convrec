@@ -48,7 +48,7 @@ def rd_jsonl_to_tsv(in_fname, out_fname):
           1000)
     return count
 
-def generic_dataset_fn(split, path, shuffle_files=False):
+def generic_dataset_fn(split, path, reverse=False, shuffle_files=False):
   """Returns a tf dataset of (conversation, response) pairs for redial."""
   # We only have one file for each split.
   del shuffle_files
@@ -62,10 +62,12 @@ def generic_dataset_fn(split, path, shuffle_files=False):
                         field_delim="\t", use_quote_delim=False),
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
   # Map each tuple to a {"conversation": ... "response": ...} dict.
+  if reverse:
+    ds = ds.map(lambda *ex: ex[::-1])
   ds = ds.map(lambda *ex: dict(zip(["inputs", "targets"], ex)))
   return ds
 
-def generic_preprocessor(ds, label, custom_function=None):
+def generic_preprocessor(ds, label):
   """Prepares text for input into model."""
   def normalize_text(text):
     """Lowercase and remove quotes from a TensorFlow string."""
@@ -74,8 +76,6 @@ def generic_preprocessor(ds, label, custom_function=None):
 
   def to_inputs_and_targets(ex):
     """Map {"conversation": ..., "response": ...}->{"inputs": ..., "targets": ...}."""
-    if custom_function is not None:
-      ex = custom_function(ex)
     return {
         "inputs":
             tf.strings.join(
@@ -85,15 +85,17 @@ def generic_preprocessor(ds, label, custom_function=None):
   return ds.map(to_inputs_and_targets,
                 num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
-def dataset_fn_wrapper(task):
+def dataset_fn_wrapper(dataset):
   path = {
     "rd_recommendations": constants.RD_TSV_PATH,
     "ml_sequences": constants.ML_SEQ_TSV_PATH,
-    "ml_tags": constants.ML_TAGS_TSV_PATH,
+    "ml_tags_normal": constants.ML_TAGS_TSV_PATH,
+    "ml_tags_reversed": constants.ML_TAGS_TSV_PATH,
     "ml_tags_masked": constants.ML_TAGS_MASKED_TSV_PATH
-  }[task]
+  }[dataset]
 
-  return lambda split, shuffle_files=False: generic_dataset_fn(split, path, shuffle_files)
+  reverse = True if dataset == "ml_tags_reversed" else False
+  return lambda split, shuffle_files=False: generic_dataset_fn(split, path, reverse, shuffle_files)
 
 def reverse_example(ex):
   return {
@@ -135,16 +137,22 @@ def preprocessor_wrapper(task, ml_tags_version="normal"):
     "ml_tags": "movielens tags: "
   }[task]
   
-  custom_function = None
-  if task == "movielens_tags":
-    custom_function = {
-      "normal": None,
-      "reversed": reverse_example,
-      # "mask": mask_text
-    }[ml_tags_version]
-  return lambda ds: generic_preprocessor(ds, label, custom_function=custom_function)
+  # custom_function = None
+  # if task == "movielens_tags":
+  #   custom_function = {
+  #     "normal": None,
+  #     "reversed": reverse_example,
+  #     # "mask": mask_text
+  #   }[ml_tags_version]
+  return lambda ds: generic_preprocessor(ds, label)
 
 # ds = generic_dataset_fn("train", {"train": "./data/movielens/ml-tags-train.tsv"})
 # print(list(ds.take(5).as_numpy_iterator()))
 # ds = generic_preprocessor(ds, "ml tags: ", custom_function=mask_text)
 # print(list(ds.take(5).as_numpy_iterator()))
+ds = dataset_fn_wrapper("ml_tags_reversed")("validation")
+print(list(ds.take(5).as_numpy_iterator()))
+ds2 = preprocessor_wrapper("ml_tags")(ds)
+print(list(ds2.take(5).as_numpy_iterator()))
+ds3 = preprocessor_wrapper("ml_tags", ml_tags_version="reversed")(ds)
+print(list(ds2.take(5).as_numpy_iterator()))

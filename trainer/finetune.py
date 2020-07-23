@@ -103,8 +103,7 @@ def main(_):
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy as our evaluation metric.
         metric_fns=[t5.evaluation.metrics.accuracy, metrics.sklearn_recall])
-  ds_version = "ml_tags_masked" if FLAGS.tags_version == "masked" else "ml_tags"
-  pre_version = "reversed" if FLAGS.tags_version == "reversed" else "normal"
+  ds_version = "ml_tags_" + FLAGS.tags.version
   if FLAGS.task == "ml_tags" or FLAGS.task == "combined":
     t5.data.TaskRegistry.add(
         "ml_tags",
@@ -112,7 +111,7 @@ def main(_):
         dataset_fn=preprocessing.dataset_fn_wrapper(ds_version),
         splits=["train", "validation"],
         # Supply a function which preprocesses text from the tf.data.Dataset.
-        text_preprocessor=[preprocessing.preprocessor_wrapper("ml_tags", ml_tags_version=pre_version)],
+        text_preprocessor=[preprocessing.preprocessor_wrapper("ml_tags")],
         # Use the same vocabulary that we used for pre-training.
         sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
