@@ -103,7 +103,7 @@ def main(_):
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy as our evaluation metric.
         metric_fns=[t5.evaluation.metrics.accuracy, metrics.sklearn_recall])
-  ds_version = "ml_tags_" + FLAGS.tags.version
+  ds_version = "ml_tags_" + FLAGS.tags_version
   if FLAGS.task == "ml_tags" or FLAGS.task == "combined":
     t5.data.TaskRegistry.add(
         "ml_tags",
