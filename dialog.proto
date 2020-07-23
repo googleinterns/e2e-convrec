@@ -1,0 +1,14 @@
+ syntax = "proto3";
+
+package e2e_convrec;
+
+message DialogEvent {
+    string speaker = 1;
+    string utterance = 2;
+    int64 time_ms = 3;
+}
+
+message Dialog {
+    string source = 1;
+    repeated DialogEvent events = 2;
+}

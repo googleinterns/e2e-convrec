@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package e2e_convrec;
+
+message MovieLensRating {
+  int32 user_id = 1;
+  int32 movie_id = 2;
+  float rating = 3;
+  int64 timestamp = 4;
+}
