@@ -16,7 +16,6 @@ import functools
 import json
 from absl import logging
 import tensorflow.compat.v1 as tf
-import numpy as np
 from trainer import constants
 
 def rd_jsonl_to_tsv(in_fname, out_fname):
@@ -61,11 +60,11 @@ def generic_dataset_fn(split, path, reverse=False, shuffle_files=False):
       functools.partial(tf.io.decode_csv, record_defaults=["", ""],
                         field_delim="\t", use_quote_delim=False),
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  
+
   # reverse if necessary
   if reverse:
     ds = ds.map(lambda *ex: ex[::-1])
-  
+
   # Map each tuple to a {"inputs": ... "targets": ...} dict.
   ds = ds.map(lambda *ex: dict(zip(["inputs", "targets"], ex)))
   return ds
@@ -78,7 +77,7 @@ def generic_preprocessor(ds, label):
     return text
 
   def to_inputs_and_targets(ex):
-    """apply preprocessing functions (in this case only lowercasing) and add 
+    """apply preprocessing functions (in this case only lowercasing) and add
     task label"""
     return {
         "inputs":
@@ -91,39 +90,39 @@ def generic_preprocessor(ds, label):
 
 def dataset_fn_wrapper(dataset):
   """Returns the dataset function for the desired dataset.
-  
-  Args: 
-    a string representing the desired dataset/task (rd_recommendations, 
+
+  Args:
+    a string representing the desired dataset/task (rd_recommendations,
     ml_sequences, ml_tags_normal, ml_tags_reversed, ml_tags_masked)
-  
+
   Returns:
-    a function that can be passed in as a T5 dataset function 
+    a function that can be passed in as a T5 dataset function
     (split, shufffle_files) -> tf.data.dataset"""
   path = {
-    "rd_recommendations": constants.RD_TSV_PATH,
-    "ml_sequences": constants.ML_SEQ_TSV_PATH,
-    "ml_tags_normal": constants.ML_TAGS_TSV_PATH,
-    "ml_tags_reversed": constants.ML_TAGS_TSV_PATH,
-    "ml_tags_masked": constants.ML_TAGS_MASKED_TSV_PATH
-  }[dataset]
+      "rd_recommendations": constants.RD_TSV_PATH,
+      "ml_sequences": constants.ML_SEQ_TSV_PATH,
+      "ml_tags_normal": constants.ML_TAGS_TSV_PATH,
+      "ml_tags_reversed": constants.ML_TAGS_TSV_PATH,
+      "ml_tags_masked": constants.ML_TAGS_MASKED_TSV_PATH
+    }[dataset]
 
-  reverse = True if dataset == "ml_tags_reversed" else False
+  reverse = dataset == "ml_tags_reversed"
   return lambda split, shuffle_files=False: generic_dataset_fn(split, path, reverse, shuffle_files)
 
 def preprocessor_wrapper(task):
   """Returns the preprocessing function for the desired task.
-  
-  Args: 
+
+  Args:
     a string representing the desired task (rd_recommendations, ml_sequences,
     ml_tags)
-  
+
   Returns:
-    a function that can be passed in as a T5 dataset function 
+    a function that can be passed in as a T5 dataset function
     (tf.data.dataset) -> tf.data.dataset"""
-  
+
   label = {
-    "rd_recommendations": "redial conversation: ",
-    "ml_sequences": "movielens sequence: ",
-    "ml_tags": "movielens tags: "
-  }[task]
+      "rd_recommendations": "redial conversation: ",
+      "ml_sequences": "movielens sequence: ",
+      "ml_tags": "movielens tags: "
+    }[task]
   return lambda ds: generic_preprocessor(ds, label)

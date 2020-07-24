@@ -31,7 +31,8 @@ flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
 flags.DEFINE_string("name", "default", "name/description of model  version")
 flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"],
                   "run mode: train, evaluate, or all")
-flags.DEFINE_enum("task", "redial", ["redial", "ml_sequences", "ml_tags", "combined"],
+flags.DEFINE_enum("task", "redial", ["redial", "ml_sequences",
+                                     "ml_tags", "combined"],
                   "data tasks: redial, movielens, or combined")
 flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
                   "version of the tags dataset: normal, reversed, or masked")
@@ -81,7 +82,8 @@ def main(_):
         dataset_fn=preprocessing.dataset_fn_wrapper("rd_recommendations"),
         splits=["train", "validation"],
         # Supply a function which preprocesses text from the tf.data.Dataset.
-        text_preprocessor=[preprocessing.preprocessor_wrapper("rd_recommendations")],
+        text_preprocessor=\
+          [preprocessing.preprocessor_wrapper("rd_recommendations")],
         # Use the same vocabulary that we used for pre-training.
         sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
@@ -105,7 +107,7 @@ def main(_):
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy/recall as our evaluation metric.
         metric_fns=[t5.evaluation.metrics.accuracy, metrics.sklearn_recall])
-  
+
   # set up the ml-tags task (training on movielens tags and genres)
   ds_version = "ml_tags_" + FLAGS.tags_version
   if FLAGS.task == "ml_tags" or FLAGS.task == "combined":
