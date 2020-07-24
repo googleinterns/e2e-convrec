@@ -22,41 +22,66 @@ def decode_example(ex):
 class TestPreprocessing(unittest.TestCase):
     
   def test_rd_preprocessing(self):
+
+    # load the redial dataset
     ds = preprocessing.dataset_fn_wrapper("rd_recommendations")("validation")
     example = list(ds.take(5).as_numpy_iterator())[0]
     decode_example(example)
+
+    # check format
     self.assertTrue("inputs" in example and "targets" in example, 
                     ("the example should be loaded into "
                     "{'inputs': [], 'targets': []} format"))
-    ds_preprocessed = preprocessing.preprocessor_wrapper("rd_recommendations")(ds)
+    
+    # load the preprocessed data
+    ds_preprocessed = \
+      preprocessing.preprocessor_wrapper("rd_recommendations")(ds)
     example = list(ds_preprocessed.take(5).as_numpy_iterator())[0]
     decode_example(example)
+
+    # check that the data has been labeled witht the correct tag
     self.assertTrue("redial conversation:" in example["inputs"], 
                     "inputs should be labeled with 'movielens sequence:'")
 
   def test_ml_seq_preprocessing(self):
+    
+    # Load the movielens sequences dataset
     ds = preprocessing.dataset_fn_wrapper("ml_sequences")("validation")
     example = list(ds.take(5).as_numpy_iterator())[0]
     decode_example(example)
+
+    # check format
     self.assertTrue("inputs" in example and "targets" in example, 
                     ("the example should be loaded into "
                     "{'inputs': [], 'targets': []} format"))
+    
+    # load the preprocessed data
     ds_preprocessed = preprocessing.preprocessor_wrapper("ml_sequences")(ds)
     example = list(ds_preprocessed.take(5).as_numpy_iterator())[0]
     decode_example(example)
+
+    # check that the data has been labeled witht the correct tag
     self.assertTrue("movielens sequence:" in example["inputs"], 
                     "inputs should be labeled with 'movielens sequence:'")
   
   def test_ml_tags_preprocessing(self):
+
+    # Load the movielens tags dataset
     ds = preprocessing.dataset_fn_wrapper("ml_tags_normal")("validation")
     example = list(ds.take(5).as_numpy_iterator())[0]
     decode_example(example)
+
+    # check format
     self.assertTrue("inputs" in example and "targets" in example, 
                     ("the example should be loaded into "
                     "{'inputs': [], 'targets': []} format"))
+    
+    # load the preprocessed data
     ds_preprocessed = preprocessing.preprocessor_wrapper("ml_tags")(ds)
     example = list(ds_preprocessed.take(5).as_numpy_iterator())[0]
     decode_example(example)
+
+    # check that the data has been labeled witht the correct tag
     self.assertTrue("movielens tags:" in example["inputs"], 
                     "inputs should be labeled with 'movielens tags:'")
   

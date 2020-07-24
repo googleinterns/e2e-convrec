@@ -55,15 +55,18 @@ def generic_dataset_fn(split, path, reverse=False, shuffle_files=False):
 
   # Load lines from the text file as examples.
   ds = tf.data.TextLineDataset(path[split])
-  # Split each "<conversation>\t<response>" example into
-  # a (conversation, response) tuple.
+  # Split each "<input>\t<target>" example into
+  # a (input, target) tuple.
   ds = ds.map(
       functools.partial(tf.io.decode_csv, record_defaults=["", ""],
                         field_delim="\t", use_quote_delim=False),
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  # Map each tuple to a {"conversation": ... "response": ...} dict.
+  
+  # reverse if necessary
   if reverse:
     ds = ds.map(lambda *ex: ex[::-1])
+  
+  # Map each tuple to a {"inputs": ... "targets": ...} dict.
   ds = ds.map(lambda *ex: dict(zip(["inputs", "targets"], ex)))
   return ds
 
@@ -75,7 +78,8 @@ def generic_preprocessor(ds, label):
     return text
 
   def to_inputs_and_targets(ex):
-    """Map {"conversation": ..., "response": ...}->{"inputs": ..., "targets": ...}."""
+    """apply preprocessing functions (in this case only lowercasing) and add 
+    task label"""
     return {
         "inputs":
             tf.strings.join(
@@ -86,6 +90,15 @@ def generic_preprocessor(ds, label):
                 num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
 def dataset_fn_wrapper(dataset):
+  """Returns the dataset function for the desired dataset.
+  
+  Args: 
+    a string representing the desired dataset/task (rd_recommendations, 
+    ml_sequences, ml_tags_normal, ml_tags_reversed, ml_tags_masked)
+  
+  Returns:
+    a function that can be passed in as a T5 dataset function 
+    (split, shufffle_files) -> tf.data.dataset"""
   path = {
     "rd_recommendations": constants.RD_TSV_PATH,
     "ml_sequences": constants.ML_SEQ_TSV_PATH,
@@ -97,13 +110,17 @@ def dataset_fn_wrapper(dataset):
   reverse = True if dataset == "ml_tags_reversed" else False
   return lambda split, shuffle_files=False: generic_dataset_fn(split, path, reverse, shuffle_files)
 
-def reverse_example(ex):
-  return {
-    "inputs": ex["targets"],
-    "targets": ex["inputs"]
-  }
-
 def preprocessor_wrapper(task):
+  """Returns the preprocessing function for the desired task.
+  
+  Args: 
+    a string representing the desired task (rd_recommendations, ml_sequences,
+    ml_tags)
+  
+  Returns:
+    a function that can be passed in as a T5 dataset function 
+    (tf.data.dataset) -> tf.data.dataset"""
+  
   label = {
     "rd_recommendations": "redial conversation: ",
     "ml_sequences": "movielens sequence: ",

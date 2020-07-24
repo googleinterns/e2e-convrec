@@ -39,6 +39,7 @@ flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
 flags.DEFINE_string("tpu_topology", "2x2", "topology of tpy used for training")
+
 def main(_):
   """Main method for fintuning: builds, trains, and evaluates t5."""
   tf.disable_v2_behavior()
@@ -73,6 +74,7 @@ def main(_):
           constants.RD_TSV_PATH[split])
     json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
+  # set up the rd_recommendations task (training on redial conversations)
   if FLAGS.task == "redial" or FLAGS.task == "combined":
     t5.data.TaskRegistry.add(
         "rd_recommendations",
@@ -85,10 +87,11 @@ def main(_):
         sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
-        # We'll use accuracy as our evaluation metric.
+        # We'll use bleu, bleu no titles, and recall as our evaluation metrics.
         metric_fns=[metrics.t2t_bleu, metrics.bleu_no_titles,
                     metrics.rd_recall])
 
+  # set up the ml_sequences task (training on movielens sequences)
   if FLAGS.task == "ml_sequences" or FLAGS.task == "combined":
     t5.data.TaskRegistry.add(
         "ml_sequences",
@@ -101,8 +104,10 @@ def main(_):
         sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
-        # We'll use accuracy as our evaluation metric.
+        # We'll use accuracy/recall as our evaluation metric.
         metric_fns=[t5.evaluation.metrics.accuracy, metrics.sklearn_recall])
+  
+  # set up the ml-tags task (training on movielens tags and genres)
   ds_version = "ml_tags_" + FLAGS.tags_version
   if FLAGS.task == "ml_tags" or FLAGS.task == "combined":
     t5.data.TaskRegistry.add(
@@ -116,7 +121,7 @@ def main(_):
         sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
-        # We'll use accuracy as our evaluation metric.
+        # We'll use accuracy/recall and bleu as our evaluation metrics.
         metric_fns=[metrics.t2t_bleu, metrics.sklearn_recall])
 
   if FLAGS.task == "combined":
