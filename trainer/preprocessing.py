@@ -103,56 +103,10 @@ def reverse_example(ex):
     "targets": ex["inputs"]
   }
 
-# def mask_text(ex):
-#   # tf.enable_eager_execution()
-#   print(ex)
-#   print(tf.strings.split([ex["targets"]], sep=", ").values)
-#   print(tf.expand_dims(ex['inputs'], 0))
-#   tokens = tf.concat([tf.expand_dims(ex['inputs'], 0), tf.strings.split(ex["targets"], sep=", ").values], 0)
-#   print(tokens)
-#   print(tf.size(tokens))
-#   breaks = tf.less(tf.random_uniform([tf.size(tokens) - 1]), 0.15)
-
-#   print(breaks)
-#   indecies = np.random.choice(tf.size(tokens), int(np.ceil(tf.size(tokens)*.15)))
-#   sentinel_tokens = ["<extra_id_%d>" % x for x in range(len(indecies) + 1)]
-
-#   targets = []
-
-#   for idx, st in zip(indecies, sentinel_tokens):
-#     targets.extend((st, tokens[idx]))
-#     tokens[idx] = st
-#   targets.append(sentinel_tokens[-1]) # Add final mask token
-
-#   print(tf.strings.reduce_join([tokens], separator=", "))
-#   return {
-#     "inputs": tf.strings.reduce_join(tokens, separator=", "),
-#     "targets": tf.strings.reduce_join(tokens, separator=", ")
-#   }
-
-def preprocessor_wrapper(task, ml_tags_version="normal"):
+def preprocessor_wrapper(task):
   label = {
     "rd_recommendations": "redial conversation: ",
     "ml_sequences": "movielens sequence: ",
     "ml_tags": "movielens tags: "
   }[task]
-  
-  # custom_function = None
-  # if task == "movielens_tags":
-  #   custom_function = {
-  #     "normal": None,
-  #     "reversed": reverse_example,
-  #     # "mask": mask_text
-  #   }[ml_tags_version]
   return lambda ds: generic_preprocessor(ds, label)
-
-# ds = generic_dataset_fn("train", {"train": "./data/movielens/ml-tags-train.tsv"})
-# print(list(ds.take(5).as_numpy_iterator()))
-# ds = generic_preprocessor(ds, "ml tags: ", custom_function=mask_text)
-# print(list(ds.take(5).as_numpy_iterator()))
-ds = dataset_fn_wrapper("ml_tags_reversed")("validation")
-print(list(ds.take(5).as_numpy_iterator()))
-ds2 = preprocessor_wrapper("ml_tags")(ds)
-print(list(ds2.take(5).as_numpy_iterator()))
-ds3 = preprocessor_wrapper("ml_tags", ml_tags_version="reversed")(ds)
-print(list(ds2.take(5).as_numpy_iterator()))
