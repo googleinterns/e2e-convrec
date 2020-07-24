@@ -67,11 +67,10 @@ def main(_):
     # Create TSVs and get counts.
     tf.logging.info("Generating Redial TSVs.")
     num_rd_examples = {}
-    for split, fname in constants.RD_SPLIT_FNAMES.items():
-      logging.info(os.path.join(constants.RD_JSONL_DIR, fname))
-      num_rd_examples[split] = preprocessing.rd_jsonl_to_tsv(
-          os.path.join(constants.RD_JSONL_DIR, fname),
-          constants.RD_TSV_PATH[split])
+    for split, path in constants.RD_JSONL_PATH.items():
+      logging.info(path)
+      num_rd_examples[split] = \
+        preprocessing.rd_jsonl_to_tsv(path, constants.RD_TSV_PATH[split])
     json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
   # set up the rd_recommendations task (training on redial conversations)

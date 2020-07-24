@@ -85,7 +85,7 @@ def save_metrics(task_name, model_dir):
   metrics_path = os.path.join(
       model_dir,
       "validation_eval/metrics" + str(results["checkpoint_step"]) + ".json")
-  json.dump({"nltk_bleu_score": nltk_bs, "sacrebleu_blue_score": sb_bs,
+  json.dump({"nltk_bleu_score": nltk_bs, "sacrebleu_bleu_score": sb_bs,
              "recall@1": 0}, tf.io.gfile.GFile(metrics_path, "w"))
 
 def sklearn_recall(targets, predictions):
@@ -128,7 +128,9 @@ def replace_titles(targets, predictions):
   return (list(map(replace_fn, targets)), list(map(replace_fn, predictions)))
 
 def bleu_no_titles(targets, predictions):
-  """Bleu metric with titles removed.
+  """Bleu metric with titles removed. This allows for testing of the dialogue
+  generation independent of movie recommendations. It also matches the format of
+  previous research for easy comparison.
 
   Args:
     targets: a list of strings, the target from the validation set

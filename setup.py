@@ -20,7 +20,7 @@ setup(
     version='1.0',
     description='End to End Conversational Recommendations Experiments',
     
-    packages=find_packages(exclude=[]),
+    packages=find_packages(),
     include_package_data=True,
     install_requires=[
         't5',
