@@ -31,9 +31,10 @@ flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
 flags.DEFINE_string("name", "default", "name/description of model  version")
 flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"],
                   "run mode: train, evaluate, or all")
-flags.DEFINE_enum("task", "redial", ["redial", "ml_sequences",
-                                     "ml_tags", "combined"],
-                  "data tasks: redial, movielens, or combined")
+flags.DEFINE_enum("task", "redial", ["redial", "ml_sequences", "ml_tags",
+                                     "rd_tags", "rd_sequences", "combined"],
+                  "data tasks: redial, movielens, rd_tags (redial + ml tags), 
+                  "rd_sequences (redial + ml_sequences), combined (all three)")
 flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
                   "version of the tags dataset: normal, reversed, or masked")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
@@ -75,7 +76,7 @@ def main(_):
     json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
   # set up the rd_recommendations task (training on redial conversations)
-  if FLAGS.task == "redial" or FLAGS.task == "combined":
+  if FLAGS.task in ["redial", "rd_tags", "rd_sequences", "combined"]:
     t5.data.TaskRegistry.add(
         "rd_recommendations",
         # Supply a function which returns a tf.data.Dataset.
@@ -93,7 +94,7 @@ def main(_):
                     metrics.rd_recall])
 
   # set up the ml_sequences task (training on movielens sequences)
-  if FLAGS.task == "ml_sequences" or FLAGS.task == "combined":
+  if FLAGS.task in ["ml_sequences", "rd_sequences", "combined"]:
     t5.data.TaskRegistry.add(
         "ml_sequences",
         # Supply a function which returns a tf.data.Dataset.
@@ -110,7 +111,7 @@ def main(_):
 
   # set up the ml-tags task (training on movielens tags and genres)
   ds_version = "ml_tags_" + FLAGS.tags_version
-  if FLAGS.task == "ml_tags" or FLAGS.task == "combined":
+  if FLAGS.task in ["ml_tags", "rd_tags", "combined"]:
     t5.data.TaskRegistry.add(
         "ml_tags",
         # Supply a function which returns a tf.data.Dataset.
@@ -125,11 +126,18 @@ def main(_):
         # We'll use accuracy/recall and bleu as our evaluation metrics.
         metric_fns=[metrics.t2t_bleu, metrics.sklearn_recall])
 
-  if FLAGS.task == "combined":
+  task_combination = {
+      "rd_tags": ["rd_recommendations", "ml_tags"]
+      "rd_sequences": ["rd_recommendations", "ml_sequences"]
+      "rd_combined": ["rd_recommendations", "ml_sequences", "combined"]
+      
+  }[FLAGS.task]
+
+  if FLAGS.task in ["rd_sequences", "rd_tags", "combined"]:
     t5.data.MixtureRegistry.remove("combined_recommendations")
     t5.data.MixtureRegistry.add(
-        "combined_recommendations",
-        ["rd_recommendations", "ml_tags"],
+        FLAGS.task,
+        task_combination,
         default_rate=1.0
     )
 
