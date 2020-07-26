@@ -31,9 +31,9 @@ flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
 flags.DEFINE_string("name", "default", "name/description of model  version")
 flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"],
                   "run mode: train, evaluate, or all")
-flags.DEFINE_enum("task", "redial", ["redial", "ml_sequences", "ml_tags",
+flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations", "ml_sequences", "ml_tags",
                                      "rd_tags", "rd_sequences", "combined"],
-                  ("data tasks: redial, movielens, rd_tags (redial + ml tags)," 
+                  ("data tasks: rd_recommendations, ml_tags, ml_sequences, rd_tags (redial + ml tags)," 
                    "rd_sequences (redial + ml_sequences), combined (all three)"))
 flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
                   "version of the tags dataset: normal, reversed, or masked")
@@ -76,7 +76,7 @@ def main(_):
     json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
   # set up the rd_recommendations task (training on redial conversations)
-  if FLAGS.task in ["redial", "rd_tags", "rd_sequences", "combined"]:
+  if FLAGS.task in ["rd_recommendations", "rd_tags", "rd_sequences", "combined"]:
     t5.data.TaskRegistry.add(
         "rd_recommendations",
         # Supply a function which returns a tf.data.Dataset.
@@ -129,9 +129,9 @@ def main(_):
   task_combination = {
       "rd_tags": ["rd_recommendations", "ml_tags"],
       "rd_sequences": ["rd_recommendations", "ml_sequences"],
-      "rd_combined": ["rd_recommendations", "ml_sequences", "combined"]
+      "combined": ["rd_recommendations", "ml_sequences", "ml_tags"]
       
-  }[FLAGS.task]
+  }.get(FLAGS.task, [])
 
   if FLAGS.task in ["rd_sequences", "rd_tags", "combined"]:
     t5.data.MixtureRegistry.remove("combined_recommendations")
@@ -165,16 +165,9 @@ def main(_):
       keep_checkpoint_max=keep_checkpoint_max,
   )
 
-  task_names = {
-      "redial": "rd_recommendations",
-      "ml_sequences": "ml_sequences",
-      "ml_tags": "ml_tags",
-      "combined": "combined_recommendations"
-    }
-
   if FLAGS.mode == "all" or FLAGS.mode == "train":
     model.finetune(
-        mixture_or_task_name=task_names[FLAGS.task],
+        mixture_or_task_name=FLAGS.task,
         pretrained_model_dir=pretrained_dir,
         finetune_steps=FLAGS.steps
     )
@@ -183,7 +176,7 @@ def main(_):
   if FLAGS.mode == "all" or FLAGS.mode == "evaluate":
     model.batch_size = train_batch_size * 4 # larger batch size to save memory.
     model.eval(
-        mixture_or_task_name=task_names[FLAGS.task],
+        mixture_or_task_name=FLAGS.task,
         checkpoint_steps="all"
     )
     # metrics.save_metrics("rd_recommendations", model_dir)
