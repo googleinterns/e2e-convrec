@@ -25,6 +25,29 @@ Apache header:
     See the License for the specific language governing permissions and
     limitations under the License.
 
+## Preapre MovieLens users' watch sequences
+
+The script `generate_movielens_user_dialogs.py` can be used to generate sequences of liked movies for each user. To run this script, first you need to download and install the [Protocol buffer compiler](https://developers.google.com/protocol-buffers/docs/downloads). 
+
+Then, compile the proto messages using
+```
+protoc -I=. --python_out=.  movie_lens_rating.proto 
+protoc -I=. --python_out=.  dialog.proto 
+```
+
+After that run the following command.
+```
+python3 generate_movielens_user_dialogs.py \
+--ratings_file_path=data/movielens/ratings.csv \
+--movies_dict_path=data/movielens/movies.csv \
+--num_ratings_per_user=10 \
+--liked_threshold=4.0 \
+--output_seq_path=output/movielens/user_watch_seq.csv \
+--output_dialog_path=output/movielens/user_dialogs.tfrecord \
+--num_shards=5
+```
+
+
 ## Running the project:
 
 To post a job, you need to use the gcloud jobs submit training command to post a job using the
