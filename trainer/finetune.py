@@ -33,8 +33,8 @@ flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"],
                   "run mode: train, evaluate, or all")
 flags.DEFINE_enum("task", "redial", ["redial", "ml_sequences", "ml_tags",
                                      "rd_tags", "rd_sequences", "combined"],
-                  "data tasks: redial, movielens, rd_tags (redial + ml tags), 
-                  "rd_sequences (redial + ml_sequences), combined (all three)")
+                  ("data tasks: redial, movielens, rd_tags (redial + ml tags)," 
+                   "rd_sequences (redial + ml_sequences), combined (all three)"))
 flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
                   "version of the tags dataset: normal, reversed, or masked")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
@@ -127,8 +127,8 @@ def main(_):
         metric_fns=[metrics.t2t_bleu, metrics.sklearn_recall])
 
   task_combination = {
-      "rd_tags": ["rd_recommendations", "ml_tags"]
-      "rd_sequences": ["rd_recommendations", "ml_sequences"]
+      "rd_tags": ["rd_recommendations", "ml_tags"],
+      "rd_sequences": ["rd_recommendations", "ml_sequences"],
       "rd_combined": ["rd_recommendations", "ml_sequences", "combined"]
       
   }[FLAGS.task]
