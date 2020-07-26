@@ -62,11 +62,10 @@ def main(_):
     # Create TSVs and get counts.
     tf.logging.info("Generating Redial TSVs.")
     num_rd_examples = {}
-    for split, fname in constants.RD_SPLIT_FNAMES.items():
-      logging.info(os.path.join(constants.RD_JSONL_DIR, fname))
-      num_rd_examples[split] = preprocessing.rd_jsonl_to_tsv(
-          os.path.join(constants.RD_JSONL_DIR, fname),
-          constants.RD_TSV_PATH[split])
+    for split, path in constants.RD_JSONL_PATH.items():
+      logging.info(path)
+      num_rd_examples[split] = \
+        preprocessing.rd_jsonl_to_tsv(path, constants.RD_TSV_PATH[split])
     json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
   t5.data.TaskRegistry.add(
@@ -80,8 +79,8 @@ def main(_):
       sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
       # Lowercase targets before computing metrics.
       postprocess_fn=t5.data.postprocessors.lower_text,
-      # We'll use accuracy as our evaluation metric.
-      metric_fns=[t5.evaluation.metrics.accuracy, t5.evaluation.metrics.bleu],
+      # We'll use bleu and recall as our evaluation metrics.
+      metric_fns=[metrics.t2t_bleu, metrics.bleu_no_titles, metrics.rd_recall],
       # Not required, but helps for mixing and auto-caching.
       num_input_examples=num_rd_examples)
 
