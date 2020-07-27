@@ -13,14 +13,17 @@ from functools import reduce
 
 flags.DEFINE_string("movielens_dir", "./data/movielens", "path to the movielens folder")
 flags.DEFINE_enum("dataset", "both", ["tags", "sequences", "both"], "which dataset to generate from movielens: tags, movie sequences, or both")
-flags.DEFINE_string("output_dir", "./data/movielens", "path to write datasets")
+flags.DEFINE_string("output_dir", "gs://e2e_central/data", "path to write datasets")
+flags.DEFINE_enum("task", "all", ["ml_tags", "ml_sequences", "all"], "task to build datasets for: ml_tags, ml_sequences, or all")
+flags.DEFINE_bool("mask", False, "boolean create masked version of ml_tags dataset")
+flags.DEFINE_integer("sample_rate", 3, "sampling rate for creating multiple masked examples from one ml_tags example")
 FLAGS = flags.FLAGS
 
 def main(_):
   
   # Define filepaths
   paths = {
-    "sequences": glob.glob(os.path.join(FLAGS.movielens_dir, "ml_user_sequences/*")),
+    "sequences": sorted(glob.glob(os.path.join("./output/movielens", "*.csv*"))),
     "movies": glob.glob(os.path.join(FLAGS.movielens_dir, "ml-25m/movies.csv"))[0],
     "tags": glob.glob(os.path.join(FLAGS.movielens_dir, "ml-25m/tags.csv"))[0],
     "genome_tags": glob.glob(os.path.join(FLAGS.movielens_dir, "ml-25m/genome-tags.csv"))[0],
@@ -35,50 +38,65 @@ def main(_):
   movie_decoder = dict(zip(movies.movieId, movies.title))
   genre_decoder = dict(zip(movies.title, movies.genres))
   
+  if FLAGS.task in ["ml_sequences", "all"]:
+    # Load the User Sequences
+    logging.info("Loading MovieLens sequences")
+    user_seqs_strings = np.concatenate([np.loadtxt(f, dtype=str, delimiter = "\n", unpack=False) for f in paths["sequences"]])
+    user_seqs_ids = list(map(parse_user_seq, user_seqs_strings))
+    user_seqs = list(map(lambda x: [movie_decoder[movieId] for movieId in x], tqdm.tqdm(user_seqs_ids)))
 
-  # Load the User Sequences
-  user_seqs_strings = np.concatenate([np.loadtxt(f, dtype=str, delimiter = "\n", unpack=False) for f in paths["sequences"]])
-  user_seqs_ids = list(map(parse_user_seq, user_seqs_strings))
-  # user_seqs = list(map(lambda x: [movie_decoder[movieId] for movieId in x], tqdm.tqdm(user_seqs_ids)))
-  
-  # Load and decode the genome scores
-  genome_scores = pd.read_csv(paths["genome_scores"])
+    def format_sequence(arr):
+      inputs = "@ %s @" % " @ ".join(arr[:-1])
+      targets = arr[-1]
+      return "\t".join((inputs, targets))
 
-  tags_dict = defaultdict(list)
 
-  logging.info("Filtering tags with relevance < .8")
-  filtered = list(filter(lambda x: x[2] > .8, tqdm.tqdm(genome_scores.values)))
+    seqs_formatted = list(map(format_sequence, user_seqs))
+    seqs_train, seqs_test = train_test_split(seqs_formatted, test_size=.2, random_state=None, shuffle=False)
 
-  logging.info("Building tag lists")
-  for movieId, tagId, _ in tqdm.tqdm(filtered):
-    tags_dict[movie_decoder[movieId]].append(tag_decoder[tagId])
-  
-  logging.info("Generated tag lists for %d movies" % len(tags_dict))
+    # writ tsvs to bucket
+    logging.info("Writing TSVs")
+    write_tsv(tqdm.tqdm(seqs_train), os.path.join(FLAGS.output_dir, "ml-sequences-train.tsv"))
+    write_tsv(tqdm.tqdm(seqs_test), os.path.join(FLAGS.output_dir, "ml-sequences-validation.tsv"))
 
-  for movie, tags in tags_dict.items():
-    tags_dict[movie].extend(genre_decoder[movie].split("|"))
-  
-  print(list(tags_dict.items())[-5:])
-  
-  for movie, tags in list(tags_dict.items())[:10]:
-    if len(tags) > 5:
-      print(movie, ", ".join(tags))
-    tags_dict[movie].extend(genre_decoder[movie].split("|"))
+  if FLAGS.task in ["ml_tags", "all"]:
+    # Load and decode the genome scores
+    genome_scores = pd.read_csv(paths["genome_scores"])
 
-  tags_formatted = ["\t".join((movie, ", ".join(tags))) for movie, tags in list(tags_dict.items())]
+    tags_dict = defaultdict(list)
 
-  tags_formatted = list(flat_map(mask_multple, tqdm.tqdm(tags_formatted)))
-  tags_train, tags_test = train_test_split(tags_formatted, test_size=.2, random_state=1)
+    logging.info("Filtering tags with relevance < .8")
+    filtered = list(filter(lambda x: x[2] > .8, tqdm.tqdm(genome_scores.values)))
 
-  write_tsv(tags_train, os.path.join(FLAGS.output_dir, "ml-tags-train-masked.tsv"))
-  write_tsv(tags_test, os.path.join(FLAGS.output_dir, "ml-tags-test-masked.tsv"))
+    logging.info("Building tag lists")
+    for movieId, tagId, _ in tqdm.tqdm(filtered):
+      tags_dict[movie_decoder[movieId]].append(tag_decoder[tagId])
+    
+    logging.info("Generated tag lists for %d movies" % len(tags_dict))
+
+    # Add the genre data
+    for movie, _ in tags_dict.items():
+      tags_dict[movie].extend(genre_decoder[movie].split("|"))
+
+    tags_formatted = ["\t".join((movie, ", ".join(tags))) for movie, tags in list(tags_dict.items())]
+
+    if FLAGS.mask:
+      tags_formatted = list(flat_map(mask_multple, tqdm.tqdm(tags_formatted)))
+    tags_train, tags_test = train_test_split(tags_formatted, test_size=.2, random_state=1)
+
+    # Write ml_tags TSVs
+    modifier = ""
+    if FLAGS.mask:
+      modifier = "-masked-" + str(FLAGS.sample_rate)
+    write_tsv(tags_train, os.path.join(FLAGS.output_dir, "ml-tags-train%s.tsv" % modifier))
+    write_tsv(tags_test, os.path.join(FLAGS.output_dir, "ml-tags-validation%s.tsv" % modifier))
 
 def flat_map(func, arr):
   return reduce(lambda a, b: a + b, map(func, arr))
 
 def mask_multple(ex):
   result = []
-  for i in range(3):
+  for i in range(FLAGS.sample_rate):
     result.append(mask_text(ex))
   return result
 
