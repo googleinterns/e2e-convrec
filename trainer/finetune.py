@@ -31,23 +31,33 @@ flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
 flags.DEFINE_string("name", "default", "name/description of model  version")
 flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"],
                   "run mode: train, evaluate, or all")
-flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations", "ml_sequences", "ml_tags",
-                                     "rd_tags", "rd_sequences", "combined"],
-                  ("data tasks: rd_recommendations, ml_tags, ml_sequences, rd_tags (redial + ml tags)," 
-                   "rd_sequences (redial + ml_sequences), combined (all three)"))
+flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations",
+                                                 "ml_sequences", "ml_tags",
+                                                 "ml_all", "rd_tags",
+                                                 "rd_sequences", "combined"],
+                  ("data tasks: rd_recommendations, ml_tags, ml_sequences, ",
+                   "rd_tags (redial + ml tags), rd_sequences (redial + ",
+                   "ml_sequences), combined (all three)"))
 flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
                   "version of the tags dataset: normal, reversed, or masked")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
 flags.DEFINE_string("tpu_topology", "2x2", "topology of tpy used for training")
+flags.DEFINE_string("subfolder", None, ("subfolder under size folder to put ",
+                                        "model in. if None, the model folder",
+                                        " will be in bucket/models/size"))
 
 def main(_):
   """Main method for fintuning: builds, trains, and evaluates t5."""
   tf.disable_v2_behavior()
   warnings.filterwarnings("ignore", category=DeprecationWarning)
   pretrained_dir = os.path.join(constants.BASE_PRETRAINED_DIR, FLAGS.size)
-  model_dir = os.path.join(constants.MODELS_DIR, FLAGS.size, FLAGS.name)
+  model_dir = os.path.join(constants.MODELS_DIR, FLAGS.size)
+  if FLAGS.subfolder is not None:
+    model_dir = os.path.join(model_dir, FLAGS.subfolder)
+  model_dir = os.path.join(model_dir, FLAGS.name)
+  logging.info("MODEL_DIR: " + model_dir)
 
   logging.info("----DETECTING TPUs----")
   try:
@@ -76,7 +86,8 @@ def main(_):
     json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
   # set up the rd_recommendations task (training on redial conversations)
-  if FLAGS.task in ["rd_recommendations", "rd_tags", "rd_sequences", "combined"]:
+  if FLAGS.task in \
+    ["rd_recommendations", "rd_tags", "rd_sequences", "combined"]:
     t5.data.TaskRegistry.add(
         "rd_recommendations",
         # Supply a function which returns a tf.data.Dataset.
@@ -94,7 +105,7 @@ def main(_):
                     metrics.rd_recall])
 
   # set up the ml_sequences task (training on movielens sequences)
-  if FLAGS.task in ["ml_sequences", "rd_sequences", "combined"]:
+  if FLAGS.task in ["ml_sequences", "ml_all", "rd_sequences", "combined"]:
     t5.data.TaskRegistry.add(
         "ml_sequences",
         # Supply a function which returns a tf.data.Dataset.
@@ -111,7 +122,7 @@ def main(_):
 
   # set up the ml-tags task (training on movielens tags and genres)
   ds_version = "ml_tags_" + FLAGS.tags_version
-  if FLAGS.task in ["ml_tags", "rd_tags", "combined"]:
+  if FLAGS.task in ["ml_tags", "ml_all", "rd_tags", "combined"]:
     t5.data.TaskRegistry.add(
         "ml_tags",
         # Supply a function which returns a tf.data.Dataset.
@@ -129,12 +140,13 @@ def main(_):
   task_combination = {
       "rd_tags": ["rd_recommendations", "ml_tags"],
       "rd_sequences": ["rd_recommendations", "ml_sequences"],
+      "ml_all": ["ml_tags", "ml_sequences"],
       "combined": ["rd_recommendations", "ml_sequences", "ml_tags"]
-      
+
   }.get(FLAGS.task, [])
 
-  if FLAGS.task in ["rd_sequences", "rd_tags", "combined"]:
-    t5.data.MixtureRegistry.remove("combined_recommendations")
+  if FLAGS.task in ["rd_sequences", "rd_tags", "combined", "ml_all"]:
+    t5.data.MixtureRegistry.remove(FLAGS.task)
     t5.data.MixtureRegistry.add(
         FLAGS.task,
         task_combination,
