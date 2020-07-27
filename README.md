@@ -25,7 +25,12 @@ Apache header:
     See the License for the specific language governing permissions and
     limitations under the License.
 
-## Preapre MovieLens users' watch sequences
+## Download the Grouplens MovieLens dataset
+
+The dataset can be found at https://grouplens.org/datasets/movielens/25m/
+move the ml-25m folder into data/movielens
+
+## Prepare MovieLens users' watch sequences
 
 The script `generate_movielens_user_dialogs.py` can be used to generate sequences of liked movies for each user. To run this script, first you need to download and install the [Protocol buffer compiler](https://developers.google.com/protocol-buffers/docs/downloads). 
 
@@ -38,12 +43,12 @@ protoc -I=. --python_out=.  dialog.proto
 After that run the following command.
 ```
 python3 generate_movielens_user_dialogs.py \
---ratings_file_path=data/movielens/ratings.csv \
---movies_dict_path=data/movielens/movies.csv \
+--ratings_file_path=data/movielens/ml-25m/ratings.csv \
+--movies_dict_path=data/movielens/ml-25m/movies.csv \
 --num_ratings_per_user=10 \
 --liked_threshold=4.0 \
---output_seq_path=output/movielens/user_watch_seq.csv \
---output_dialog_path=output/movielens/user_dialogs.tfrecord \
+--output_seq_path=data/movielens/sequences/user_watch_seq.csv \
+--output_dialog_path=data/movielens/sequences/user_dialogs.tfrecord \
 --num_shards=5
 ```
 
