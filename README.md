@@ -28,7 +28,8 @@ Apache header:
 ## Download the Grouplens MovieLens dataset
 
 The dataset can be found at https://grouplens.org/datasets/movielens/25m/
-move the ml-25m folder into data/movielens
+
+Download it, extract the ml-25m folder and move it into data/movielens
 
 ## Prepare MovieLens users' watch sequences
 
