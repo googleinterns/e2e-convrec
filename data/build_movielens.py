@@ -35,6 +35,10 @@ flags.DEFINE_bool("mask", False, \
   "boolean create masked version of ml_tags dataset")
 flags.DEFINE_integer("sample_rate", 3, \
   "rate for sampling multiple masked examples from one ml_tags example")
+flags.DEFINE_float("seqs_test_size", .2, \
+  "test split size for the sequences dataset")
+flags.DEFINE_float("tags_test_size", .2, \
+  "test split size for the tags dataset")
 FLAGS = flags.FLAGS
 
 def main(_):
@@ -43,14 +47,14 @@ def main(_):
   paths = {
       "sequences": sorted(glob.glob(os.path.join(FLAGS.movielens_dir,
                                                  "sequences", "*.csv*"))),
-      "movies": glob.glob(os.path.join(FLAGS.movielens_dir,
-                                       "ml-25m/movies.csv"))[0],
-      "tags": glob.glob(os.path.join(FLAGS.movielens_dir,
-                                     "ml-25m/tags.csv"))[0],
-      "genome_tags": glob.glob(os.path.join(FLAGS.movielens_dir,
-                                            "ml-25m/genome-tags.csv"))[0],
-      "genome_scores": glob.glob(os.path.join(FLAGS.movielens_dir,
-                                              "ml-25m/genome-scores.csv"))[0]
+      "movies": os.path.join(FLAGS.movielens_dir,
+                                       "ml-25m/movies.csv"),
+      "tags": os.path.join(FLAGS.movielens_dir,
+                                     "ml-25m/tags.csv"),
+      "genome_tags": os.path.join(FLAGS.movielens_dir,
+                                            "ml-25m/genome-tags.csv"),
+      "genome_scores": os.path.join(FLAGS.movielens_dir,
+                                              "ml-25m/genome-scores.csv")
   }
 
   # Load the movie and tag id files
@@ -80,7 +84,8 @@ def main(_):
 
 
     seqs_formatted = list(map(format_sequence, user_seqs))
-    seqs_train, seqs_test = train_test_split(seqs_formatted, test_size=.2,
+    seqs_train, seqs_test = train_test_split(seqs_formatted,
+                                            test_size=FLAGS.seqs_test_size,
                                              random_state=None, shuffle=False)
 
     # writ tsvs to bucket
@@ -115,7 +120,8 @@ def main(_):
 
     if FLAGS.mask:
       tags_formatted = list(flat_map(mask_multple, tqdm.tqdm(tags_formatted)))
-    tags_train, tags_test = train_test_split(tags_formatted, test_size=.2,
+    tags_train, tags_test = train_test_split(tags_formatted, 
+                                             test_size=FLAGS.tags_test_size,
                                              random_state=1)
 
     # Write ml_tags TSVs
