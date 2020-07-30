@@ -163,10 +163,9 @@ def mask_text(ex):
 
 def write_tsv(arr, filepath):
   """writes an array to a tsv"""
-  print(list(arr)[:5])
-  # with tf.io.gfile.GFile(filepath, 'w') as f:
-  #   for line in arr:
-  #     f.write(line + "\n")
+  with tf.io.gfile.GFile(filepath, 'w') as f:
+    for line in arr:
+      f.write(line + "\n")
 
 def parse_user_seq(line):
   """parses a sequence of ids from a line of the ml_user_sequences dataset"""
