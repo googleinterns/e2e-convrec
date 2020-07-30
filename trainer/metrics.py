@@ -15,13 +15,9 @@
 
 import os
 import collections
-import json
 import re
-from absl import logging
 import tensorflow.compat.v1 as tf
 import t5
-import nltk
-import sacrebleu
 import tensorflow_datasets as tfds
 from tensor2tensor.utils import bleu_hook
 from trainer import constants
@@ -61,32 +57,6 @@ def load_predictions(task_name, model_dir):
       results["targets"].append(tf.compat.as_text(ex["targets_plaintext"]))
       results["predictions"].append(pred.strip())
   return results
-
-def save_metrics(task_name, model_dir):
-  """Prints and saves metrics for the most recent checkpoint. Current metrics
-  are nltk bleu score and sacrebleu bleu score. Data is lowercased before
-  evaluation. Movie titles are not removed. """
-  results = load_predictions(task_name, model_dir)
-  predictions = results["predictions"]
-  targets = results["targets"]
-  logging.info("PREDICTION: ", predictions[0])
-  logging.info("TARGET: ", targets[0])
-  hyp = list(map(lambda x: x.split(), predictions))
-  ref = list(map(lambda x: [x.split()], targets))
-
-  nltk_bs = nltk.translate.bleu_score.corpus_bleu(list_of_references=ref,
-                                                  hypotheses=hyp)
-  sb_bs = str(sacrebleu.corpus_bleu(predictions, [targets]))
-
-  scores = {"nltk_bleu_score": nltk_bs, "sacrebleu_blue_score": sb_bs}
-  logging.info("CHECKPOINT: %d" % int(results["checkpoint_step"]))
-  logging.info(scores)
-  # Writes to $MODEL_DIR$/validation_eval/metrics$CHECKPOINT_NUMBER.json
-  metrics_path = os.path.join(
-      model_dir,
-      "validation_eval/metrics" + str(results["checkpoint_step"]) + ".json")
-  json.dump({"nltk_bleu_score": nltk_bs, "sacrebleu_bleu_score": sb_bs,
-             "recall@1": 0}, tf.io.gfile.GFile(metrics_path, "w"))
 
 def sklearn_recall(targets, predictions):
   """Uses the built in t5 sklearn_metrics_wrapper to calculate sklearn recall@1

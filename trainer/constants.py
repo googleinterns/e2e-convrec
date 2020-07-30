@@ -30,3 +30,15 @@ RD_TSV_PATH = {
     "train": os.path.join(DATA_DIR, "rd-train.tsv"),
     "validation": os.path.join(DATA_DIR, "rd-validation.tsv")
 }
+ML_SEQ_TSV_PATH = {
+    "train": os.path.join(DATA_DIR, "ml-train.tsv"),
+    "validation": os.path.join(DATA_DIR, "ml-validation.tsv")
+}
+ML_TAGS_TSV_PATH = {
+    "train": os.path.join(DATA_DIR, "ml-tags-train.tsv"),
+    "validation": os.path.join(DATA_DIR, "ml-tags-validation.tsv")
+}
+ML_TAGS_MASKED_TSV_PATH = {
+    "train": os.path.join(DATA_DIR, "ml-tags-train-masked-3.tsv"),
+    "validation": os.path.join(DATA_DIR, "ml-tags-validation-masked-3.tsv")
+}
