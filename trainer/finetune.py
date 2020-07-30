@@ -29,18 +29,37 @@ flags.DEFINE_integer('steps', 6000, "Finetuning training steps.")
 flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
                   "model size")
 flags.DEFINE_string("name", "default", "name/description of model  version")
-flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"],
+flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all", "export"],
                   "run mode: train, evaluate, or all")
+flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations",
+                                                 "ml_sequences", "ml_tags",
+                                                 "ml_all", "rd_tags",
+                                                 "rd_sequences", "combined"],
+                  ("data tasks: rd_recommendations, ml_tags, ml_sequences, ",
+                   "ml_all (seqs + tags), rd_tags (redial + ml tags), ",
+                   "rd_sequences (redial + ml seqs), combined (all three)"))
+flags.DEFINE_integer('ckpt_to_export', -1, ("which model ckpt to export. Enter",
+                                            "a step number or -1 for latest"))
+flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
+                  "version of the tags dataset: normal, reversed, or masked")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
 flags.DEFINE_string("tpu_topology", "2x2", "topology of tpy used for training")
+flags.DEFINE_string("subfolder", None, ("subfolder under size folder to put ",
+                                        "model in. if None, the model folder",
+                                        " will be in bucket/models/size"))
+
 def main(_):
   """Main method for fintuning: builds, trains, and evaluates t5."""
   tf.disable_v2_behavior()
   warnings.filterwarnings("ignore", category=DeprecationWarning)
   pretrained_dir = os.path.join(constants.BASE_PRETRAINED_DIR, FLAGS.size)
-  model_dir = os.path.join(constants.MODELS_DIR, FLAGS.size, FLAGS.name)
+  model_dir = os.path.join(constants.MODELS_DIR, FLAGS.size)
+  if FLAGS.subfolder is not None:
+    model_dir = os.path.join(model_dir, FLAGS.subfolder)
+  model_dir = os.path.join(model_dir, FLAGS.name)
+  logging.info("MODEL_DIR: " + model_dir)
 
   logging.info("----DETECTING TPUs----")
   try:
@@ -68,21 +87,73 @@ def main(_):
         preprocessing.rd_jsonl_to_tsv(path, constants.RD_TSV_PATH[split])
     json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
-  t5.data.TaskRegistry.add(
-      "rd_recommendations",
-      # Supply a function which returns a tf.data.Dataset.
-      dataset_fn=preprocessing.rd_dataset_fn,
-      splits=["train", "validation"],
-      # Supply a function which preprocesses text from the tf.data.Dataset.
-      text_preprocessor=[preprocessing.conversation_preprocessor],
-      # Use the same vocabulary that we used for pre-training.
-      sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
-      # Lowercase targets before computing metrics.
-      postprocess_fn=t5.data.postprocessors.lower_text,
-      # We'll use bleu and recall as our evaluation metrics.
-      metric_fns=[metrics.t2t_bleu, metrics.bleu_no_titles, metrics.rd_recall],
-      # Not required, but helps for mixing and auto-caching.
-      num_input_examples=num_rd_examples)
+  # set up the rd_recommendations task (training on redial conversations)
+  if FLAGS.task in \
+    ["rd_recommendations", "rd_tags", "rd_sequences", "combined"]:
+    t5.data.TaskRegistry.add(
+        "rd_recommendations",
+        # Supply a function which returns a tf.data.Dataset.
+        dataset_fn=preprocessing.dataset_fn_wrapper("rd_recommendations"),
+        splits=["train", "validation"],
+        # Supply a function which preprocesses text from the tf.data.Dataset.
+        text_preprocessor=\
+          [preprocessing.preprocessor_wrapper("rd_recommendations")],
+        # Use the same vocabulary that we used for pre-training.
+        sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
+        # Lowercase targets before computing metrics.
+        postprocess_fn=t5.data.postprocessors.lower_text,
+        # We'll use bleu, bleu no titles, and recall as our evaluation metrics.
+        metric_fns=[metrics.t2t_bleu, metrics.bleu_no_titles,
+                    metrics.rd_recall])
+
+  # set up the ml_sequences task (training on movielens sequences)
+  if FLAGS.task in ["ml_sequences", "ml_all", "rd_sequences", "combined"]:
+    t5.data.TaskRegistry.add(
+        "ml_sequences",
+        # Supply a function which returns a tf.data.Dataset.
+        dataset_fn=preprocessing.dataset_fn_wrapper("ml_sequences"),
+        splits=["train", "validation"],
+        # Supply a function which preprocesses text from the tf.data.Dataset.
+        text_preprocessor=[preprocessing.preprocessor_wrapper("ml_sequences")],
+        # Use the same vocabulary that we used for pre-training.
+        sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
+        # Lowercase targets before computing metrics.
+        postprocess_fn=t5.data.postprocessors.lower_text,
+        # We'll use accuracy/recall as our evaluation metric.
+        metric_fns=[t5.evaluation.metrics.accuracy, metrics.sklearn_recall])
+
+  # set up the ml-tags task (training on movielens tags and genres)
+  ds_version = "ml_tags_" + FLAGS.tags_version
+  if FLAGS.task in ["ml_tags", "ml_all", "rd_tags", "combined"]:
+    t5.data.TaskRegistry.add(
+        "ml_tags",
+        # Supply a function which returns a tf.data.Dataset.
+        dataset_fn=preprocessing.dataset_fn_wrapper(ds_version),
+        splits=["train", "validation"],
+        # Supply a function which preprocesses text from the tf.data.Dataset.
+        text_preprocessor=[preprocessing.preprocessor_wrapper("ml_tags")],
+        # Use the same vocabulary that we used for pre-training.
+        sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
+        # Lowercase targets before computing metrics.
+        postprocess_fn=t5.data.postprocessors.lower_text,
+        # We'll use accuracy/recall and bleu as our evaluation metrics.
+        metric_fns=[metrics.t2t_bleu, metrics.sklearn_recall])
+
+  task_combination = {
+      "rd_tags": ["rd_recommendations", "ml_tags"],
+      "rd_sequences": ["rd_recommendations", "ml_sequences"],
+      "ml_all": ["ml_tags", "ml_sequences"],
+      "combined": ["rd_recommendations", "ml_sequences", "ml_tags"]
+
+  }.get(FLAGS.task, [])
+
+  if FLAGS.task in ["rd_sequences", "rd_tags", "combined", "ml_all"]:
+    t5.data.MixtureRegistry.remove(FLAGS.task)
+    t5.data.MixtureRegistry.add(
+        FLAGS.task,
+        task_combination,
+        default_rate=1.0
+    )
 
   # Set parallelism and batch size to fit on v2-8 TPU (if possible).
   # Limit number of checkpoints to fit within 5GB (if possible).
@@ -110,7 +181,7 @@ def main(_):
 
   if FLAGS.mode == "all" or FLAGS.mode == "train":
     model.finetune(
-        mixture_or_task_name="rd_recommendations",
+        mixture_or_task_name=FLAGS.task,
         pretrained_model_dir=pretrained_dir,
         finetune_steps=FLAGS.steps
     )
@@ -119,10 +190,9 @@ def main(_):
   if FLAGS.mode == "all" or FLAGS.mode == "evaluate":
     model.batch_size = train_batch_size * 4 # larger batch size to save memory.
     model.eval(
-        mixture_or_task_name="rd_recommendations",
+        mixture_or_task_name=FLAGS.task,
         checkpoint_steps="all"
     )
-    metrics.save_metrics("rd_recommendations", model_dir)
 
 
   # Export the SavedModel
@@ -131,7 +201,7 @@ def main(_):
   model.batch_size = 1 # make one prediction per call
   saved_model_path = model.export(
       export_dir,
-      checkpoint_step=-1,  # use most recent
+      checkpoint_step=FLAGS.ckpt_to_export,  # use most recent
       beam_size=FLAGS.beam_size,
       temperature=FLAGS.temperature,
   )

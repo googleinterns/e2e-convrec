@@ -66,7 +66,8 @@ module located in trainer.fintune:
     --steps=6000 \
     --size=base \
     --name=quickstart \
-    --mode=all
+    --mode=all \
+    --task=combined
 
 steps, size, name, and mode are user flags which default to 6000, base, default, and all. Size has to be either small, base, large, 3B, or 11B. Mode can be set to train
 (for finetuning), evaluation (for evaulating the most recnt checkpoint), or all (for both). if there is already a model at gs://e2e_central/models/$SIZE/$NAME, 
@@ -76,6 +77,17 @@ PROJECT_NAME is a unique identifier to the job instance. You can find the existi
 
     gcloud ai-platform jobs list
 
+the `--task` flag determines which training tasks are run. There are three tasks:
+
+`rd_recommendations`: dialogue responses from the redial dataset
+
+`ml_sequences`: sequences of movies from the movielens dataset
+
+`ml_tags`: (movie, tags) pairs from the movielens dataset
+
+Set the `--task` flag to equal any of these options:
+
+`rd_recommendations`, `ml_tags`, `ml_sequences`, `ml_all` (seqs + tags), `rd_tags` (redial + tags), `rd_sequences` (redial + seqs), `combined` (all three)
 
 ## Running tensorboard:
 
