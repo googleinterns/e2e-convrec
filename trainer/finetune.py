@@ -193,7 +193,6 @@ def main(_):
         mixture_or_task_name=FLAGS.task,
         checkpoint_steps="all"
     )
-    # metrics.save_metrics("rd_recommendations", model_dir)
 
 
   # Export the SavedModel
