@@ -29,7 +29,7 @@ flags.DEFINE_integer('steps', 6000, "Finetuning training steps.")
 flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
                   "model size")
 flags.DEFINE_string("name", "default", "name/description of model  version")
-flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all"],
+flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all", "export"],
                   "run mode: train, evaluate, or all")
 flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations",
                                                  "ml_sequences", "ml_tags",
@@ -38,6 +38,8 @@ flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations",
                   ("data tasks: rd_recommendations, ml_tags, ml_sequences, ",
                    "rd_tags (redial + ml tags), rd_sequences (redial + ",
                    "ml_sequences), combined (all three)"))
+flags.DEFINE_integer('ckpt_to_export', -1, ("which model ckpt to export. Enter",
+                                            "a step number or -1 for latest"))
 flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
                   "version of the tags dataset: normal, reversed, or masked")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
@@ -200,7 +202,7 @@ def main(_):
   model.batch_size = 1 # make one prediction per call
   saved_model_path = model.export(
       export_dir,
-      checkpoint_step=-1,  # use most recent
+      checkpoint_step=FLAGS.ckpt_to_export,  # use most recent
       beam_size=FLAGS.beam_size,
       temperature=FLAGS.temperature,
   )

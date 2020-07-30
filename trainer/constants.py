@@ -36,9 +36,9 @@ ML_SEQ_TSV_PATH = {
 }
 ML_TAGS_TSV_PATH = {
     "train": os.path.join(DATA_DIR, "ml-tags-train.tsv"),
-    "validation": os.path.join(DATA_DIR, "ml-tags-test.tsv")
+    "validation": os.path.join(DATA_DIR, "ml-tags-validation.tsv")
 }
 ML_TAGS_MASKED_TSV_PATH = {
-    "train": os.path.join(DATA_DIR, "ml-tags-train-masked.tsv"),
-    "validation": os.path.join(DATA_DIR, "ml-tags-test-masked.tsv")
+    "train": os.path.join(DATA_DIR, "ml-tags-train-masked-3.tsv"),
+    "validation": os.path.join(DATA_DIR, "ml-tags-validation-masked-3.tsv")
 }
