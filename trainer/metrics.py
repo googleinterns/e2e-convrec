@@ -15,13 +15,9 @@
 
 import os
 import collections
-import json
 import re
-from absl import logging
 import tensorflow.compat.v1 as tf
 import t5
-import nltk
-import sacrebleu
 import tensorflow_datasets as tfds
 from tensor2tensor.utils import bleu_hook
 from trainer import constants

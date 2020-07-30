@@ -36,8 +36,8 @@ flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations",
                                                  "ml_all", "rd_tags",
                                                  "rd_sequences", "combined"],
                   ("data tasks: rd_recommendations, ml_tags, ml_sequences, ",
-                   "rd_tags (redial + ml tags), rd_sequences (redial + ",
-                   "ml_sequences), combined (all three)"))
+                   "ml_all (seqs + tags), rd_tags (redial + ml tags), ",
+                   "rd_sequences (redial + ml seqs), combined (all three)"))
 flags.DEFINE_integer('ckpt_to_export', -1, ("which model ckpt to export. Enter",
                                             "a step number or -1 for latest"))
 flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
