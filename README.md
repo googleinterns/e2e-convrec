@@ -126,3 +126,13 @@ if you wanted to reformat the training data you can use `python3 -m data.build_r
 
 You can use the command `nosetests -a '!network'` to run all local tests or `nosetests to run all tests`, or `nosetests <specific_test.py>` to run a specific test
 
+## Troubleshooting
+
+### I've see an error: 'Anonymous caller does not have storage.objects.get access to the Google Cloud Storage object.'
+
+After installing gcloud SDK, you may need to authenticate to generate credential files for command line access and SDK access:
+
+    `gcloud auth application-default login`
+    `gcloud auth login`
+
+The latter, when executed in this order, generate credentials for SDK login.
