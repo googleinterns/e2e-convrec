@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Unit Tests for the trainer.preprocessing scripts"""
+from nose.plugins.attrib import attr
 import unittest
 from trainer import preprocessing
 
@@ -19,6 +20,7 @@ def decode_example(ex):
   for key, value in ex.items():
     ex[key] = value.decode()
 
+@attr('network')
 class TestPreprocessing(unittest.TestCase):
   """Class for testing the preprocessing functions"""
 

@@ -124,5 +124,5 @@ if you wanted to reformat the training data you can use `python3 -m data.build_r
 
 ## To Run Tests
 
-You can use the command `python3 -m unittest` to run all the tests or `python3 -m unittest test/$SPECIFIC_TEST` to run a specific test
+You can use the command `nosetests -a '!network'` to run all local tests or `nosetests to run all tests`, or `nosetests <specific_test.py>` to run a specific test
 

@@ -9,3 +9,4 @@ output/
 data/movielens
 *.pyc
 *pb2.py
+*.zip
