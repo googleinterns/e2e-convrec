@@ -15,7 +15,7 @@
 import unittest
 from data import build_redial
 
-class TestPreprocessing(unittest.TestCase):
+class TestBuildRedial(unittest.TestCase):
   def test_separate_responses(self):
     test_data_files = {
         "inputs": "./test/test-data/separate_responses_inputs.jsonl",
