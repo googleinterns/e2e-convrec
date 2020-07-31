@@ -39,6 +39,7 @@ flags.DEFINE_float("seqs_test_size", .2, \
   "test split size for the sequences dataset")
 flags.DEFINE_float("tags_test_size", .2, \
   "test split size for the tags dataset")
+flags.DEFINE_float("mask_rate", .15, "percent of ml_tag to mask")
 FLAGS = flags.FLAGS
 
 def main(_):
@@ -150,7 +151,7 @@ def mask_text(ex):
   mask tokens"""
   movie, tags = ex.split("\t")
   tokens = np.append(movie, tags.split(", "))
-  indecies = np.random.choice(len(tokens), int(np.ceil(len(tokens)*.15)))
+  indecies = np.random.choice(len(tokens), int(np.ceil(len(tokens)*FLAGS.mask_rate)))
   sentinel_tokens = ["<extra_id_%d>" % x for x in range(len(indecies) + 1)]
   targets = []
 
