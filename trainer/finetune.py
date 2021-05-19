@@ -45,7 +45,7 @@ flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
-flags.DEFINE_string("tpu_topology", "2x2", "topology of tpy used for training")
+flags.DEFINE_string("tpu_topology", "v2-8", "topology of tpu subfolder used for training")
 flags.DEFINE_string("subfolder", None, ("subfolder under size folder to put ",
                                         "model in. if None, the model folder",
                                         " will be in bucket/models/size"))
@@ -99,7 +99,7 @@ def main(_):
         text_preprocessor=\
           [preprocessing.preprocessor_wrapper("rd_recommendations")],
         # Use the same vocabulary that we used for pre-training.
-        sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
+        # sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use bleu, bleu no titles, and recall as our evaluation metrics.
@@ -116,7 +116,7 @@ def main(_):
         # Supply a function which preprocesses text from the tf.data.Dataset.
         text_preprocessor=[preprocessing.preprocessor_wrapper("ml_sequences")],
         # Use the same vocabulary that we used for pre-training.
-        sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
+        # sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy/recall as our evaluation metric.
@@ -133,7 +133,7 @@ def main(_):
         # Supply a function which preprocesses text from the tf.data.Dataset.
         text_preprocessor=[preprocessing.preprocessor_wrapper("ml_tags")],
         # Use the same vocabulary that we used for pre-training.
-        sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
+        # sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy/recall and bleu as our evaluation metrics.
@@ -159,8 +159,8 @@ def main(_):
   # Limit number of checkpoints to fit within 5GB (if possible).
   model_parallelism, train_batch_size, keep_checkpoint_max = {
       "small": (1, 256, 16),
-      "base": (2, 128, 8),
-      "large": (8, 64, 4),
+      "base": (4, 128, 16),
+      "large": (8, 64, 10),
       "3B": (8, 16, 1),
       "11B": (8, 16, 1)}[FLAGS.size]
 
@@ -188,7 +188,7 @@ def main(_):
 
   # Evaluate and save predictions
   if FLAGS.mode == "all" or FLAGS.mode == "evaluate":
-    model.batch_size = train_batch_size * 4 # larger batch size to save memory.
+    model.batch_size = train_batch_size * 4
     model.eval(
         mixture_or_task_name=FLAGS.task,
         checkpoint_steps="all"
@@ -204,6 +204,7 @@ def main(_):
       checkpoint_step=FLAGS.ckpt_to_export,  # use most recent
       beam_size=FLAGS.beam_size,
       temperature=FLAGS.temperature,
+      vocabulary = t5.data.get_default_vocabulary()
   )
   logging.info("Model saved to:", saved_model_path)
 

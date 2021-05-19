@@ -85,7 +85,7 @@ scipy==1.4.1
 sentencepiece==0.1.91
 six==1.15.0
 sympy==1.6
-t5==0.6.0
+t5==0.8.0
 tensor2tensor==1.15.7
 tensorboard==2.2.2
 tensorboard-plugin-wit==1.6.0.post3

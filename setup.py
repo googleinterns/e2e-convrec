@@ -23,7 +23,8 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        't5',
+        't5==0.8.0',
+        'tensorflow-text==2.2',
         'nltk',
         'sacrebleu',
         'tensor2tensor'
