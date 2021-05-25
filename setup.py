@@ -23,14 +23,15 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        't5',
+        't5==0.8.0',
+        'tensorflow-text==2.2',
         'nltk',
         'sacrebleu',
         'tensor2tensor'
     ],
     extras_require={
-        'tensorflow': ['tensorflow>=2.0.0'],
-        'tensorflow_gpu': ['tensorflow-gpu>=2.0.0'],
+        'tensorflow': ['tensorflow==2.2.2'],
+        'tensorflow_gpu': ['tensorflow-gpu==2.2.2'],
         'tensorflow-hub': ['tensorflow-hub>=0.6.0'],
     },
     python_requires='>=3.6',
