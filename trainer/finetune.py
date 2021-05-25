@@ -45,7 +45,7 @@ flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
-flags.DEFINE_string("tpu_topology", "v2-8", "topology of tpu subfolder used for training")
+flags.DEFINE_string("tpu_topology", "2x2", "topology of tpu subfolder used for training")
 flags.DEFINE_string("subfolder", None, ("subfolder under size folder to put ",
                                         "model in. if None, the model folder",
                                         " will be in bucket/models/size"))
@@ -188,10 +188,11 @@ def main(_):
 
   # Evaluate and save predictions
   if FLAGS.mode == "all" or FLAGS.mode == "evaluate":
-    model.batch_size = train_batch_size * 4
+    model.batch_size = train_batch_size * 8
     model.eval(
         mixture_or_task_name=FLAGS.task,
-        checkpoint_steps="all"
+        checkpoint_steps=list(range(999900, 999901+FLAGS.steps, 2000)),
+        compute_sequence_length=False
     )
 
 
@@ -206,7 +207,7 @@ def main(_):
       temperature=FLAGS.temperature,
       vocabulary = t5.data.get_default_vocabulary()
   )
-  logging.info("Model saved to:", saved_model_path)
+  logging.info(f"Model saved to: {saved_model_path}")
 
 if __name__ == "__main__":
   app.run(main)
