@@ -42,3 +42,9 @@ ML_TAGS_MASKED_TSV_PATH = {
     "train": os.path.join(DATA_DIR, "ml-tags-train-masked-3.tsv"),
     "validation": os.path.join(DATA_DIR, "ml-tags-validation-masked-3.tsv")
 }
+PROBE_1_TSV_PATH = {
+    "validation": os.path.join(DATA_DIR, "probes", "probe_1.tsv")
+}
+PROBE_2_TSV_PATH = {
+    "validation": os.path.join(DATA_DIR, "probes", "probe_2.tsv")
+}

@@ -103,7 +103,9 @@ def dataset_fn_wrapper(dataset):
       "ml_sequences": constants.ML_SEQ_TSV_PATH,
       "ml_tags_normal": constants.ML_TAGS_TSV_PATH,
       "ml_tags_reversed": constants.ML_TAGS_TSV_PATH,
-      "ml_tags_masked": constants.ML_TAGS_MASKED_TSV_PATH
+      "ml_tags_masked": constants.ML_TAGS_MASKED_TSV_PATH,
+      "probe_1": constants.PROBE_1_TSV_PATH,
+      "probe_2": constants.PROBE_2_TSV_PATH
     }[dataset]
 
   reverse = dataset == "ml_tags_reversed"

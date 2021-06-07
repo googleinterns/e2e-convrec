@@ -29,7 +29,7 @@ flags.DEFINE_integer('steps', 6000, "Finetuning training steps.")
 flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
                   "model size")
 flags.DEFINE_string("name", "default", "name/description of model  version")
-flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all", "export"],
+flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all", "export", "probe_1", "probe_2"],
                   "run mode: train, evaluate, or all")
 flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations",
                                                  "ml_sequences", "ml_tags",
@@ -138,6 +138,15 @@ def main(_):
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy/recall and bleu as our evaluation metrics.
         metric_fns=[metrics.t2t_bleu, metrics.sklearn_recall])
+  if "probe" in FLAGS.mode:
+    t5.data.TaskRegistry.add(
+        FLAGS.mode,
+        # Supply a function which returns a tf.data.Dataset.
+        dataset_fn=preprocessing.dataset_fn_wrapper(FLAGS.mode),
+        splits=["validation"],
+        # Supply a function which preprocesses text from the tf.data.Dataset.
+        text_preprocessor=[preprocessing.preprocessor_wrapper("rd_recommendations")],
+        metric_fns=[metrics.probe_pair_accuracy])
 
   task_combination = {
       "rd_tags": ["rd_recommendations", "ml_tags"],
@@ -194,6 +203,17 @@ def main(_):
         checkpoint_steps=list(range(999900, 999901+FLAGS.steps, 2000)),
         compute_sequence_length=False
     )
+  
+  if "probe" in FLAGS.mode:
+    model.batch_size = train_batch_size * 8
+
+    for steps in range(999900, 999901+FLAGS.steps, 2000):
+      model.eval(
+          mixture_or_task_name=FLAGS.mode,
+          checkpoint_steps=steps,
+          compute_sequence_length=False,
+          eval_with_score=True
+      )
 
 
   # Export the SavedModel

@@ -171,3 +171,17 @@ def rd_recall(targets, predictions):
   dataset = build_redial.read_jsonl(constants.RD_JSONL_PATH["validation"])
   all_metadata = [example["metadata"] for example in dataset]
   return {"rd_recall": recall_from_metadata(prediction_titles, all_metadata)}
+
+def probe_pair_accuracy(targets, predictions):
+  pairs = [(i, i+1) for i in range(0, len(predictions), 2)]
+  correct = 0
+  total = 0
+  for i1, i2 in pairs:
+    if predictions[i1] >= predictions[i2]:
+      correct += 1
+    total += 1
+  
+  if total == 0:
+    return 0
+
+  return {"pair accuracy" : float(correct) / total}
