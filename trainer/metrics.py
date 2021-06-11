@@ -13,19 +13,22 @@
 # limitations under the License.
 """Scripts For Loading Predictions and Providing Evaluation Metrics."""
 
-import os
 import collections
+import os
 import re
-import tensorflow.compat.v1 as tf
-import t5
-import tensorflow_datasets as tfds
-from tensor2tensor.utils import bleu_hook
-from trainer import constants
+
 from data import build_redial
+import t5
+from tensor2tensor.utils import bleu_hook
+import tensorflow.compat.v1 as tf
+import tensorflow_datasets as tfds
+from trainer import constants
+
 
 def _prediction_file_to_ckpt(path):
   """Extract the global step from a prediction filename."""
   return int(path.split("_")[-2])
+
 
 def load_predictions(task_name, model_dir):
   """Loads the most recent predictions in as ([(input, target, pred)], step)."""
@@ -58,29 +61,32 @@ def load_predictions(task_name, model_dir):
       results["predictions"].append(pred.strip())
   return results
 
+
 def sklearn_recall(targets, predictions):
-  """Uses the built in t5 sklearn_metrics_wrapper to calculate sklearn recall@1
+  """Uses the t5's sklearn_metrics_wrapper to calculate sklearn recall@1.
 
   Args:
     targets: a list of strings, the target from the validation set
-    preditcions: a list of strings, the model predictions
+    predictions: a list of strings, the model predictions
 
   Returns:
     a dictionary: {"sklearn_recall": recall_value}
   """
-  prfs = t5.evaluation.metrics.sklearn_metrics_wrapper(
-      "precision_recall_fscore_support",
-      average='micro')(targets, predictions) \
-      ["precision_recall_fscore_support"]
+  prfs_function = t5.evaluation.metrics.sklearn_metrics_wrapper(
+      "precision_recall_fscore_support", average="micro")
+  prfs = prfs_function(targets, predictions)["precision_recall_fscore_support"]
   return {"sklearn_recall": prfs[1]}
 
+
 def t2t_bleu(targets, predictions):
-  """Tokenizes with the bleu_tokenize method from the t2t library then
-  calls the compute_bleu function
+  """Bleu score using t2t library.
+
+  Tokenizes with the bleu_tokenize method from the t2t library then
+  calls the compute_bleu function.
 
   Args:
     targets: a list of strings, the target from the validation set
-    preditcions: a list of strings, the model predictions
+    predictions: a list of strings, the model predictions
 
   Returns:
     a dictionary: {"t2t_bleu": bleu_value}
@@ -90,21 +96,26 @@ def t2t_bleu(targets, predictions):
   return {"t2t_bleu": 100 * bleu_hook.compute_bleu(targets_tokens,
                                                    predictions_tokens)}
 
+
 def replace_titles(targets, predictions):
-  """Replaces titles with a __unk__ token. Returns an updated
-  (targets, predictions) tuple"""
-  replace_fn = \
-    lambda text: re.sub(r"\@([^@]*\([^@]*\)[^@]*)\@", "__unk__", text)
+  """Replaces titles with a __unk__ token."""
+
+  def replace_fn(text):
+    return re.sub(r"\@([^@]*\([^@]*\)[^@]*)\@", "__unk__", text)
+
   return (list(map(replace_fn, targets)), list(map(replace_fn, predictions)))
 
+
 def bleu_no_titles(targets, predictions):
-  """Bleu metric with titles removed. This allows for testing of the dialogue
+  """Bleu metric with titles removed.
+
+  This allows for testing of the dialogue
   generation independent of movie recommendations. It also matches the format of
   previous research for easy comparison.
 
   Args:
     targets: a list of strings, the target from the validation set
-    preditcions: a list of strings, the model predictions
+    predictions: a list of strings, the model predictions
 
   Returns:
     a dictionary: {"bleu_no_titles": bleu_value}
@@ -113,12 +124,13 @@ def bleu_no_titles(targets, predictions):
   return {"bleu_no_titles": t2t_bleu(tars_no_titles,
                                      preds_no_titles)["t2t_bleu"]}
 
+
 def isolate_titles(targets, predictions):
   """Maps each target and prediction to a list of movies metioned.
 
   Args:
     targets: a list of strings, the target from the validation set
-    preditcions: a list of strings, the model predictions
+    predictions: a list of strings, the model predictions
 
   Returns:
     a tuple containing a list of lists for both target and prediction titles
@@ -132,12 +144,14 @@ def isolate_titles(targets, predictions):
     all_prediction_titles.append([x.strip() for x in prediction_titles])
   return all_target_titles, all_prediction_titles
 
+
 def recall_from_metadata(prediction_titles, all_metadata):
   """Calculates recall for movie suggestions in redial.
 
   Args:
-    prediction_titles: a list of list containing the titles mentioned in
-    each prediciton.
+    prediction_titles: a list of lists containing the titles mentioned in
+                       each prediciton.
+    all_metadata: the metadata of each redial conversation
 
   Returns:
     the recall value, a float between 0 and 100
@@ -145,7 +159,7 @@ def recall_from_metadata(prediction_titles, all_metadata):
   matches = 0.0
   total = 0.0
   for mentioned_movies, metadata in zip(prediction_titles, all_metadata):
-    mentioned_movies = set(mentioned_movies) # get rid of duplicates
+    mentioned_movies = set(mentioned_movies)  # get rid of duplicates
     # Recommendations are movies not menioned by the user themselves
     recs = set(filter(lambda x, md=metadata: x not in md["user_movies"],
                       mentioned_movies))
@@ -156,13 +170,16 @@ def recall_from_metadata(prediction_titles, all_metadata):
     total += len(recs)
   return 0 if total == 0 else 100 * matches / total
 
+
 def rd_recall(targets, predictions):
-  """Wrapper for rd_recall metric. Runs recall on movie mentions within the
-  predictions and correct recommendations from the validation metadata
+  """Wrapper for rd_recall metric.
+
+  Runs recall on movie mentions within the predictions and correct
+  recommendations from the validation metadata.
 
   Args:
     targets: a list of strings, the target from the validation set
-    preditcions: a list of strings, the model predictions
+    predictions: a list of strings, the model predictions
 
   Returns:
     a dictionary: {"rd_recall": recall_value}
@@ -172,7 +189,20 @@ def rd_recall(targets, predictions):
   all_metadata = [example["metadata"] for example in dataset]
   return {"rd_recall": recall_from_metadata(prediction_titles, all_metadata)}
 
+
 def probe_pair_accuracy(targets, predictions):
+  """Pairwise accuracy metric for probes.
+
+  Calculates the percentage of (related movie, random popular movie) in which
+  L(related) >= L(random)
+
+  Args:
+    targets: a list of strings, the target from the probe set
+    predictions: a list of floats, the log likelihoods of the probes
+
+  Returns:
+    a dictionary: {"pair_accuracy": computed_value}
+  """
   pairs = [(i, i+1) for i in range(0, len(predictions), 2)]
   correct = 0
   total = 0
@@ -180,8 +210,8 @@ def probe_pair_accuracy(targets, predictions):
     if predictions[i1] >= predictions[i2]:
       correct += 1
     total += 1
-  
+
   if total == 0:
     return 0
 
-  return {"pair accuracy" : float(correct) / total}
+  return {"pair_accuracy": float(correct) / total}

@@ -1,3 +1,19 @@
+# Copyright 2020 Google LLC
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     https://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Scripts For Building Probe 1 (Movie-to-Movie Recommendations)."""
+
+
 import tensorflow.compat.v1 as tf
 from tqdm import tqdm
 from collections import defaultdict
@@ -11,33 +27,29 @@ from absl import logging
 import tqdm
 
 def main(_):
-  """generate probe 1 data from movielens sequences"""
+  """generate probe  2 data from movielens tags."""
   logging.info("generating probe_1.tsv")
   random.seed(42)
 
-  with tf.io.gfile.GFile("gs://e2e_central/data/probes/co_matrix.npy", 'rb') as f:
-    co_matrix = np.load(f)
+  # with tf.io.gfile.GFile("gs://e2e_central/data/probes/co_matrix.npy", 'rb') as f:
+  #   co_matrix = np.load(f)
 
-  with tf.io.gfile.GFile("gs://e2e_central/data/probes/mi_matrix.npy", 'rb') as f:
-    mi_matrix = np.load(f)
+  # with tf.io.gfile.GFile("gs://e2e_central/data/probes/mi_matrix.npy", 'rb') as f:
+  #   mi_matrix = np.load(f)
 
   with tf.io.gfile.GFile("gs://e2e_central/data/probes/movie_id_info.json", 'r') as f:
     movie_ids = json.load(f)
   
+  
+
   # define "popular" set as moview which appear in over 500 user sequences
-  popular_movies = list(sorted(movie_ids["all_movies"], 
-                                key=lambda x: movie_ids["popularity"][x], 
-                                reverse=True))
-
-  popular_movies = [x for x in popular_movies if movie_ids["popularity"][x] >= 500]
-
+  popular_movies = [x.lower() for x in movie_ids["all_movies"] if movie_ids["popularity"][x] >= 500]
+  
   # filter out movies which appear in under 10 user sequences
-  filtered_movies = list(sorted(movie_ids["all_movies"],
-                                key=lambda x: movie_ids["popularity"][x],
-                                reverse=True))
-    
-  filtered_movies = [x for x in filtered_movies if movie_ids["popularity"][x] >= 10]
+  filtered_movies = [x.lower() for x in movie_ids["all_movies"] if movie_ids["popularity"][x] >= 10]
 
+  print("filtered", len(filtered_movies))
+  print(filtered_movies[:10])
   probes = []
   tag_data = {}
 

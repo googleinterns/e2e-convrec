@@ -20,8 +20,10 @@ import collections
 import numpy as np
 from absl import app, logging, flags
 import pandas as pd
+import tensorflow.compat.v1 as tf
 import tqdm
 from sklearn.model_selection import train_test_split
+import random
 
 
 flags.DEFINE_string("movielens_dir", "./data/movielens", \
@@ -40,10 +42,14 @@ flags.DEFINE_float("seqs_test_size", .2, \
 flags.DEFINE_float("tags_test_size", .2, \
   "test split size for the tags dataset")
 flags.DEFINE_float("mask_rate", .15, "percent of ml_tag to mask")
+flags.DEFINE_bool("v2", False, "v2")
 FLAGS = flags.FLAGS
 
 def main(_):
   """Builds the movielens datasets and saves tsvs in output_dir"""
+
+  random.seed(42)
+
   # Define filepaths
   paths = {
       "sequences": sorted(glob.glob(os.path.join(FLAGS.movielens_dir,
