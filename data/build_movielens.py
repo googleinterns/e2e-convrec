@@ -42,7 +42,6 @@ flags.DEFINE_float("seqs_test_size", .2, \
 flags.DEFINE_float("tags_test_size", .2, \
   "test split size for the tags dataset")
 flags.DEFINE_float("mask_rate", .15, "percent of ml_tag to mask")
-flags.DEFINE_bool("v2", False, "v2")
 FLAGS = flags.FLAGS
 
 def main(_):
