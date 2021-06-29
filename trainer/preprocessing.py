@@ -111,8 +111,11 @@ def dataset_fn_wrapper(dataset):
       "ml_tags_normal": constants.ML_TAGS_TSV_PATH,
       "ml_tags_reversed": constants.ML_TAGS_TSV_PATH,
       "ml_tags_masked": constants.ML_TAGS_MASKED_TSV_PATH,
+      "ml_reviews": constants.ML_REVIEWS_TSV_PATH,
       "probe_1": constants.PROBE_1_TSV_PATH,
-      "probe_2": constants.PROBE_2_TSV_PATH
+      "probe_1_sequences": constants.PROBE_1_TSV_PATH,
+      "probe_2": constants.PROBE_2_TSV_PATH,
+      "probe_3": constants.PROBE_3_TSV_PATH
     }[dataset]
 
   reverse = dataset == "ml_tags_reversed"
@@ -137,7 +140,8 @@ def preprocessor_wrapper(task):
   label = {
       "rd_recommendations": "redial conversation: ",
       "ml_sequences": "movielens sequence: ",
-      "ml_tags": "movielens tags: "
+      "ml_tags": "movielens tags: ",
+      "ml_reviews": "movielens review: "
     }[task]
 
   return lambda ds: generic_preprocessor(ds, label)

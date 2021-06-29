@@ -84,22 +84,29 @@ def main(_):
       """map a list of movie names to a tab-separated string
       example:
       """
-      inputs = "@ %s @" % " @ ".join(arr[:-1])
-      targets = arr[-1]
-      return "\t".join((inputs, targets))
+      result = []
+      for i in range(len(arr)):
+        target = arr[i]
+        related = arr[:i] + arr[i+1:]
+        input_length = random.randint(1, min(5, len(related)))
+        inputs = random.sample(related, k=input_length)
+        example = "@ %s @" % " @ ".join(inputs) + "\t" + target
+        result.append(example)
+
+      return result
 
 
-    seqs_formatted = list(map(format_sequence, user_seqs))
+    seqs_formatted = list(flat_map(format_sequence, tqdm.tqdm(user_seqs)))
     seqs_train, seqs_test = train_test_split(seqs_formatted,
                                             test_size=FLAGS.seqs_test_size,
-                                             random_state=None, shuffle=False)
+                                             random_state=1, shuffle=True)
 
     # writ tsvs to bucket
     logging.info("Writing TSVs")
     write_tsv(tqdm.tqdm(seqs_train), os.path.join(FLAGS.output_dir,
-                                                  "ml-sequences-train.tsv"))
+                                                  "new-ml-sequences-train.tsv"))
     write_tsv(tqdm.tqdm(seqs_test), os.path.join(FLAGS.output_dir,
-                                                 "ml-sequences-validation.tsv"))
+                                                 "new-ml-sequences-validation.tsv"))
 
   if FLAGS.task in ["ml_tags", "all"]:
     # Load and decode the genome scores
@@ -118,14 +125,27 @@ def main(_):
     for movie, _ in tags_dict.items():
       tags_dict[movie].extend(genre_decoder[movie].split("|"))
 
-    def format_tags(example):
-      """format one example of tags into tab-separated string"""
-      movie, tags = example
-      return "\t".join((movie, ", ".join(tags)))
-    tags_formatted = list(map(format_tags, tags_dict.items()))
+    def format_tags(ex, p=.33):
+      movie, tags = ex
+      tags = list(set([x.lower() for x in tags]))
+      result = []
+      for i in range(2):
+        random.shuffle(tags)
+        sublist = []
+        for tag in tags:
+          sublist.append(tag)
+          if random.random() <= p:
+            result.append(", ".join(sublist) + "\t" + movie)
+            sublist = []
+        if sublist != []:
+          result.append(", ".join(sublist) + "\t" + movie)
+      return result
+    
+
+    tags_formatted = list(flat_map(format_tags, tqdm.tqdm(tags_dict.items())))
 
     if FLAGS.mask:
-      tags_formatted = list(flat_map(mask_multple, tqdm.tqdm(tags_formatted)))
+      tags_formatted = list(flat_map(mask_multple, tqdm.tqdm(tags_dict.items())))
     tags_train, tags_test = train_test_split(tags_formatted, 
                                              test_size=FLAGS.tags_test_size,
                                              random_state=1)
@@ -140,7 +160,7 @@ def main(_):
                                       "ml-tags-validation%s.tsv" % modifier))
 
 def flat_map(func, arr):
-  """maps a funciton then flattens using functools.reduce"""
+  """Maps a funciton then flattens using functools.reduce."""
   return functools.reduce(lambda a, b: a + b, map(func, arr))
 
 def mask_multple(ex):
@@ -154,7 +174,7 @@ def mask_text(ex):
   """masks using the strategy described in the t5 paper section 3.1.4
   (https://arxiv.org/abs/1910.10683) 15% of tokens are replaced with sentinel
   mask tokens"""
-  movie, tags = ex.split("\t")
+  movie, tags = ex
   tokens = np.append(movie, tags.split(", "))
   indecies = np.random.choice(len(tokens), int(np.ceil(len(tokens)*FLAGS.mask_rate)))
   sentinel_tokens = ["<extra_id_%d>" % x for x in range(len(indecies) + 1)]

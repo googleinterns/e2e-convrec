@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Scripts For Building Probe 2 (Tag-to-Movie Recommendations)."""
+"""Scripts For Building Probe 4 (Movie/Tag-to-Movie Recommendations)."""
 
 
 import tensorflow.compat.v1 as tf
@@ -25,18 +25,18 @@ from absl import app
 from absl import flags
 from absl import logging
 import tqdm
-from trainer import constants
+
 
 def main(_):
-  """generate probe  2 data from movielens tags."""
-  logging.info("generating probe_3.tsv")
+  """generate probe 4 data from movielens tags."""
+  logging.info("generating probe_1.tsv")
   random.seed(42)
 
-  # with tf.io.gfile.GFile("gs://e2e_central/data/probes/co_matrix.npy", 'rb') as f:
-  #   co_matrix = np.load(f)
+  with tf.io.gfile.GFile("gs://e2e_central/data/probes/co_matrix.npy", 'rb') as f:
+    co_matrix = np.load(f)
 
-  # with tf.io.gfile.GFile("gs://e2e_central/data/probes/mi_matrix.npy", 'rb') as f:
-  #   mi_matrix = np.load(f)
+  with tf.io.gfile.GFile("gs://e2e_central/data/probes/mi_matrix.npy", 'rb') as f:
+    mi_matrix = np.load(f)
 
   with tf.io.gfile.GFile("gs://e2e_central/data/probes/movie_id_info.json", 'r') as f:
     movie_ids = json.load(f)
@@ -49,8 +49,18 @@ def main(_):
   # filter out movies which appear in under 10 user sequences
   filtered_movies = [x.lower() for x in movie_ids["all_movies"] if movie_ids["popularity"][x] >= 10]
 
-  print("filtered", len(filtered_movies))
-  print(filtered_movies[:10])
+  movie_ids["all_movies"] = [x.lower() for x in movie_ids["all_movies"]]
+  movie_ids["movie_to_id"] = dict(zip(movie_ids["all_movies"], list(range(len(movie_ids["all_movies"])))))
+  movie_ids["id_to_movie"] = dict(zip(list(range(len(movie_ids["all_movies"]))), movie_ids["all_movies"]))
+  def intersection(list1, list2):
+    return [x for x in list1 if x in list2]
+  
+  def get_related_movies(movie, k=5):
+    movie_id = movie_ids["movie_to_id"][movie]
+    row = mi_matrix[movie_id]
+    related_ids = np.argsort(row)[::-1]
+    return [movie_ids["id_to_movie"][x] for x in related_ids[:k + 1]][1:]
+
   probes = []
   tag_data = {}
 
@@ -65,15 +75,19 @@ def main(_):
   # filter out discrepencies between sequences and tag data
   popular_movies = [x for x in popular_movies if x in tag_data]
   for movie, tags in tag_data.items():
-    for tag in tags:
-
-      # Find the list of popular movies not associated witht he current tag
-      popular_filtered = [x for x in popular_movies if tag not in tag_data[x]]
-      probes.append(f"[User] Can you recommend me a {tag} movie?\tSure, have you seen @ {movie} @?")
-      probes.append(f"[User] Can you recommend me a {tag} movie?\tSure, have you seen @ {random.choice(popular_filtered)} @?")
+    related_movies = get_related_movies(movie, k=10)
+    for related in related_movies:
+      if related in tag_data:
+        common_tags = intersection(tags, tag_data[related])
+        if len(common_tags) > 5:
+          common_tags = random.sample(common_tags, k=5)
+        for tag in intersection(tags, tag_data[related]):
+          popular_filtered = [x for x in popular_movies if tag not in tag_data[x]]
+          probes.append(f"[User] Can you recommend me a {tag} movie like @ {movie} @?\tSure, have you seen @ {related} @?")
+          probes.append(f"[User] Can you recommend me a {tag} movie like @ {movie} @?\tSure, have you seen @ {random.choice(popular_filtered)} @?")
 
   logging.info(f"{len(probes)} pairs generated")
-  with tf.io.gfile.GFile(constants.PROBE_2_TSV_PATH["validation"], 'w') as f:
+  with tf.io.gfile.GFile(constants.PROBE_4_TSV_PATH["validation"], 'w') as f:
     for line in probes:
       f.write(f"{line}\n")
 if __name__ == "__main__":

@@ -29,7 +29,8 @@ FLAGS = flags.FLAGS
 flags.DEFINE_enum("mode", "auto", ["ids", "probes", "all", "auto"],
                   "auto to build whatever's missing, ids to rebuild ids, "
                   + "cooccurrence and MI, all to do all")
-
+flags.DEFINE_enum("version", "normal", ["normal", "sequences"],
+                  "normal (rd_recommendations, or just movies for sequence task")
 
 def create_mutual_info(co_matrix, movie_ids):
   """Build mutual info matrix from cooccurrence matrix."""
@@ -166,9 +167,14 @@ def main(_):
       random_list = random.sample(popular_movies, k=10)
 
       for related, rand in zip(related_list, random_list):
-        prompt = f"[User] Can you recommend me a movie like @ {movie} @"
-        probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
-        probes.append(f"{prompt}\t\tSure, have you seen @ {rand} @?")
+        if FLAGS.version == "normal":
+          prompt = f"[User] Can you recommend me a movie like @ {movie} @"
+          probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
+          probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")
+        else:
+          prompt = f"@ {movie} @"
+          probes.append(f"{prompt}\t{related}")
+          probes.append(f"{prompt}\t{rand}")
 
     for i in range(0, 20):
       if i % 2 == 0:
@@ -176,7 +182,12 @@ def main(_):
       logging.info(probes[i])
 
     logging.info("%d pairs generated", len(probes))
-    with tf.io.gfile.GFile(constants.PROBE_1_TSV_PATH["validation"], "w") as f:
+    if FLAGS.version == 'normal':
+      path = constants.PROBE_1_TSV_PATH["validation"]
+    else:
+      path = constants.PROBE_1_SEQ_PATH["validation"]
+
+    with tf.io.gfile.GFile(path, "w") as f:
       for line in probes:
         f.write(f"{line}\n")
 

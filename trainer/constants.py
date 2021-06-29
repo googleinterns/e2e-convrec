@@ -34,22 +34,35 @@ RD_TSV_PATH = {
     "validation": os.path.join(DATA_DIR, "rd-validation.tsv")
 }
 ML_SEQ_TSV_PATH = {
-    "train": os.path.join(DATA_DIR, "ml-sequences-train.tsv"),
-    "validation": os.path.join(DATA_DIR, "ml-sequences-validation.tsv")
+    "train": os.path.join(DATA_DIR, "new-ml-sequences-train.tsv"),
+    "validation": os.path.join(DATA_DIR, "new-ml-sequences-validation.tsv")
 }
 ML_TAGS_TSV_PATH = {
-    "train": os.path.join(DATA_DIR, "ml-tags-train.tsv"),
-    "validation": os.path.join(DATA_DIR, "ml-tags-validation.tsv")
+    "train": os.path.join(DATA_DIR, "ml-tags-train-v2.tsv"),
+    "validation": os.path.join(DATA_DIR, "ml-tags-validation-v2.tsv")
 }
 ML_TAGS_MASKED_TSV_PATH = {
     "train": os.path.join(DATA_DIR, "ml-tags-train-masked-3.tsv"),
     "validation": os.path.join(DATA_DIR, "ml-tags-validation-masked-3.tsv")
 }
+ML_REVIEWS_TSV_PATH = {
+    "train": os.path.join(DATA_DIR, "ml-reviews-train.tsv"),
+    "validation": os.path.join(DATA_DIR, "ml-reviews-validation.tsv")
+}
 PROBE_1_TSV_PATH = {
     "validation": os.path.join(PROBE_DIR, "probe_1.tsv")
 }
+PROBE_1_SEQ_PATH = {
+    "validation": os.path.join(PROBE_DIR, "probe_1_sequences.tsv")
+}
 PROBE_2_TSV_PATH = {
     "validation": os.path.join(PROBE_DIR, "probe_2.tsv")
+}
+PROBE_3_TSV_PATH = {
+    "validation": os.path.join(PROBE_DIR, "probe_3.tsv")
+}
+PROBE_4_TSV_PATH = {
+    "validation": os.path.join(PROBE_DIR, "probe_4.tsv")
 }
 MATRIX_PATHS = {
     "movie_ids": os.path.join(PROBE_DIR, "movie_id_info.json"),
