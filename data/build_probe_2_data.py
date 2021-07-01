@@ -48,13 +48,13 @@ def main(_):
   # define "popular" set as movie which appear in over FLAGS.popular_min_pop 
   # user sequences
 
-  popular_movies = [x for x in movie_ids["all_movies"]
+  popular_movies = [x.lower() for x in movie_ids["all_movies"]
                     if movie_ids["popularity"][x] >= FLAGS.popular_min_pop]
 
   # define "filtered" set as movie which appear in over FLAGS.probe_min_pop 
   # user sequences
 
-  filtered_movies = [x for x in movie_ids["all_movies"]
+  filtered_movies = [x.lower() for x in movie_ids["all_movies"]
                       if movie_ids["popularity"][x] >= FLAGS.probe_min_pop]
 
   probes = []
@@ -70,8 +70,6 @@ def main(_):
 
   # filter out discrepencies between sequences and tag data
   popular_movies = [x for x in popular_movies if x in tag_data]
-  print(len(popular_movies))
-  print(len(tag_data))
   for movie, tags in tag_data.items():
     for tag in tags:
 
