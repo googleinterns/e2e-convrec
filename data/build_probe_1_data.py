@@ -28,11 +28,29 @@ from trainer import constants
 FLAGS = flags.FLAGS
 flags.DEFINE_enum("mode", "auto", ["ids", "probes", "all", "auto"],
                   "auto to build whatever's missing, ids to rebuild ids, "
-                  + "cooccurrence and MI, all to do all")
+                  + "cooccurrence and MI, all to do all, probes to generate " 
+                  + "just the probe data without rebuilding the movie id or " 
+                  + "pmi matricies")
+flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose" 
+                     + "-1 for a randomly picked seed")
+flags.DEFINE_integer("probe_min_pop", 10, "minimum poularity to be in probe")
+flags.DEFINE_integer("popular_min_pop", 500, "minimum popularity to be" 
+                 + " considered a popular movie")
 
 
 def create_mutual_info(co_matrix, movie_ids):
-  """Build mutual info matrix from cooccurrence matrix."""
+  """Build mutual info matrix from cooccurrence matrix.
+    
+  Args:
+    co_matrix: a cooccurence matrix off all the movies in the movielens 
+      sequences dataset
+    movie_ids: a dictionary containing the movie to id mapping generated in this
+      script 
+
+  Returns:
+    a matrix mi_matrix where:
+    mi_matrix[i][j] = pointwise_mutual_info(movie_i, movie_j)
+  """
 
   popularities = []
 
@@ -50,10 +68,21 @@ def create_mutual_info(co_matrix, movie_ids):
 
 
 def create_cooccurrence(sequences, movie_ids):
-  """Build cooccurrence matrix from list of sequences."""
+  """Build cooccurrence matrix from list of sequences.
+    
+  Args:
+    sequences: a list of lists of strings containing the 10 movies in each
+      sequences in the movielens sequences dataset
+    movie_ids: a dictionary containing the movie to id mapping generated in this
+      script 
+
+  Returns:
+    a matrix co_matrix where:
+    co_matrix[i][j] = number of sequences containing both movie_i and movie_j
+  """
   co_matrix = np.zeros((len(movie_ids["all_movies"]),
                         len(movie_ids["all_movies"])))
-  print("building cooccurrence matrix")
+
   for seq in tqdm(sequences):
     for movie1 in seq:
       for movie2 in seq:
@@ -127,7 +156,9 @@ def main(_):
   if (not tf.io.gfile.exists(constants.PROBE_1_TSV_PATH["validation"]) or
       FLAGS.mode in ["all", "probes"]):
     logging.info("generating probe_1.tsv")
-    random.seed(42)
+    
+    # set random seed for picking random movies
+    random.seed(FLAGS.random_seed)
 
     with tf.io.gfile.GFile(constants.MATRIX_PATHS["co_matrix"], "rb") as f:
       co_matrix = np.load(f)
@@ -138,26 +169,31 @@ def main(_):
     with tf.io.gfile.GFile(constants.MATRIX_PATHS["movie_ids"], "r") as f:
       movie_ids = json.load(f)
 
-    # define "popular" set as moview which appear in over 500 user sequences
-    popular_movies = list(sorted(movie_ids["all_movies"],
-                                 key=lambda x: movie_ids["popularity"][x],
-                                 reverse=True))
+    # define "popular" set as movie which appear in over 500 user sequences
 
-    popular_movies = [x for x in popular_movies
-                      if movie_ids["popularity"][x] >= 500]
+    popular_movies = [x for x in movie_ids["all_movies"]
+                      if movie_ids["popularity"][x] >= FLAGS.popular_min_pop]
 
     # filter out movies which appear in under 10 user sequences
-    filtered_movies = list(sorted(movie_ids["all_movies"],
-                                  key=lambda x: movie_ids["popularity"][x],
-                                  reverse=True))
 
-    filtered_movies = [x for x in filtered_movies
-                       if movie_ids["popularity"][x] >= 10]
+    filtered_movies = [x for x in movie_ids["all_movies"]
+                       if movie_ids["popularity"][x] >= FLAGS.probe_min_pop]
 
     def get_related_movies(movie, k=5):
+      """Get the k closest related movies as sorted by pmi
+
+      Args:
+        movie: a string representing the title of the query movie
+        k: an int representing the number of related movies to retrieve
+
+      Returns:
+        a list of strings: the titles of the k most related movies
+      """
       movie_id = movie_ids["movie_to_id"][movie]
       row = mi_matrix[movie_id]
       related_ids = np.argsort(row)[::-1]
+
+      # convert to strings and ignore the 1st most related movie (itself)
       return [movie_ids["id_to_movie"][str(x)] for x in related_ids[:k + 1]][1:]
 
     probes = []
@@ -168,12 +204,7 @@ def main(_):
       for related, rand in zip(related_list, random_list):
         prompt = f"[User] Can you recommend me a movie like @ {movie} @"
         probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
-        probes.append(f"{prompt}\t\tSure, have you seen @ {rand} @?")
-
-    for i in range(0, 20):
-      if i % 2 == 0:
-        logging.info("good/random pair:")
-      logging.info(probes[i])
+        probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")
 
     logging.info("%d pairs generated", len(probes))
     with tf.io.gfile.GFile(constants.PROBE_1_TSV_PATH["validation"], "w") as f:
