@@ -186,12 +186,13 @@ def main(_):
   task_combination = {
       "rd_tags": ["rd_recommendations", "ml_tags"],
       "rd_sequences": ["rd_recommendations", "ml_sequences"],
+      "rd_reviews": ["rd_recommendations", "ml_reviews"],
       "ml_all": ["ml_tags", "ml_sequences"],
-      "combined": ["rd_recommendations", "ml_sequences", "ml_tags"]
+      "combined": ["rd_recommendations", "ml_sequences", "ml_tags", "ml_reviews"]
 
   }.get(FLAGS.task, [])
 
-  if FLAGS.task in ["rd_sequences", "rd_tags", "combined", "ml_all"]:
+  if FLAGS.task in ["rd_sequences", "rd_tags", "rd_reviews", "combined", "ml_all"]:
     t5.data.MixtureRegistry.remove(FLAGS.task)
     t5.data.MixtureRegistry.add(
         FLAGS.task,
