@@ -54,5 +54,6 @@ PROBE_2_TSV_PATH = {
 MATRIX_PATHS = {
     "movie_ids": os.path.join(PROBE_DIR, "movie_id_info.json"),
     "co_matrix": os.path.join(PROBE_DIR, "co_matrix.npy"),
-    "pmi_matrix": os.path.join(PROBE_DIR, "pmi_matrix.npy")
+    "pmi_matrix": os.path.join(PROBE_DIR, "pmi_matrix.npy"),
+    "compressed": os.path.join(PROBE_DIR, "co_pmi_matricies.npz")
 }
