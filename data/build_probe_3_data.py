@@ -34,6 +34,27 @@ from sklearn.model_selection import train_test_split
 
 nltk.download('punkt')
 
+def build_review_examples(review_df, movie_ids):
+  review_map = {}
+
+  for review, movie in zip(review_df['query'], review_df['relevant_doc']):
+    if movie in movie_ids["all_movies"] and movie_ids["popularity"][movie] > 1:
+      if movie not in review_map:
+        review_map[movie] = [review]
+      else:
+        review_map[movie].append(review)
+  examples = []
+
+  for movie, reviews in review_map.items():
+    for review in reviews[:5]:
+      review_start = ""
+      for line in nltk.tokenize.sent_tokenize(review):
+        examples.append(f"Review for @ {movie} @: {review_start}\t{line}")
+        if review_start != "":
+          review_start += " "
+        review_start += line
+  
+  return examples
 def main(_):
   """generate probe 3 data from reviews dataset."""
   logging.info("generating probe_3.tsv")
@@ -74,22 +95,18 @@ def main(_):
   
   filtered['relevant_doc'] = filtered['relevant_doc'].map(build_movielens.flip_titles)
   filtered.drop(filtered.columns.difference(['query', 'relevant_doc']), 1, inplace=True)
-  train_df, probe_df = train_test_split(filtered, test_size=0.2)
+  train_df, probe_df = train_test_split(filtered, test_size=0.2, random_state=1)
   
-  train = []
-  for review, movie in zip(train_df['query'], train_df['relevant_doc']):
-    train.append(f"@ {movie} @\t{review}")
+  train_examples = build_review_examples(train_df, movie_ids)
 
   with tf.io.gfile.GFile(constants.ML_REVIEWS_TSV_PATH["train"], "w") as f:
-    for line in train:
+    for line in train_examples:
       f.write(f"{line}\n")
 
-  validation = []
-  for review, movie in zip(probe_df['query'], probe_df['relevant_doc']):
-    validation.append(f"@ {movie} @\t{review}")
+  validation_examples = build_review_examples(probe_df, movie_ids)
 
   with tf.io.gfile.GFile(constants.ML_REVIEWS_TSV_PATH["validation"], "w") as f:
-    for line in validation:
+    for line in validation_examples:
       f.write(f"{line}\n")
   
   probe_df['query'] = probe_df['query'].map(filter_sentences)
@@ -107,9 +124,9 @@ def main(_):
   for movie in review_map.keys():
     for review in review_map[movie]:
       random_popular = random.choice(popular_movies)
-      random_review = random.choice(review_map[random_popular])
+      # random_review = random.choice(review_map[random_popular])
       probes.append(f"[User] What is your opinion on @ {movie} @?\t{review}")
-      probes.append(f"[User] What is your opinion on @ {movie} @?\t{random_review}")
+      probes.append(f"[User] What is your opinion on @ {random_popular} @?\t{review}")
   
   logging.info("%d pairs generated", len(probes))
 
