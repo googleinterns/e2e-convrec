@@ -59,17 +59,15 @@ def create_pmi(co_matrix, movie_ids):
 
   popularities = np.array(popularities)
   popularities[popularities<1] = 1
-  # PMI is calculated as log(P(X, Y) / (P(X) * P(Y)))
+  # PMI^2 is calculated as log(P(X, Y)^2 / (P(X) * P(Y)))
   pxy = co_matrix / movie_ids["num_sequences"]
   print(np.min(pxy))
   print(np.min(pxy[pxy>0]))
   pxy[pxy==0] = 1e-12
   px = (popularities / movie_ids["num_sequences"]).reshape((-1, 1))
   py = (popularities / movie_ids["num_sequences"]).reshape((1, -1))
-  pmi = np.log(pxy / np.matmul(px, py))
-
-  npmi = pmi / (-np.log(pxy))
-  return npmi
+  pmi = np.log((pxy**2) / np.matmul(px, py))
+  return pmi
 
 
 def create_cooccurrence(sequences, movie_ids):
@@ -152,38 +150,32 @@ def main(_):
     co_matrix = create_cooccurrence(sequences_data, movie_ids)
     pmi_matrix = create_pmi(co_matrix, movie_ids)
 
-  #   logging.info("writing_matricies")
-  #   with tf.io.gfile.GFile(constants.MATRIX_PATHS["compressed"], "a+") as f:
-  #     np.savez_compressed(f, co=co_matrix, pmi=pmi_matrix)
+    logging.info("writing_matricies")
 
-  #   # with tf.io.gfile.GFile(constants.MATRIX_PATHS["co_matrix"], "w") as f:
-  #   #   np.save(f, co_matrix)
+    with tf.io.gfile.GFile(constants.MATRIX_PATHS["co_matrix"], "w") as f:
+      np.save(f, co_matrix)
 
-  #   # with tf.io.gfile.GFile(constants.MATRIX_PATHS["pmi_matrix"], "w") as f:
-  #   #   np.save(f, pmi_matrix)
+    with tf.io.gfile.GFile(constants.MATRIX_PATHS["pmi_matrix"], "w") as f:
+      np.save(f, pmi_matrix)
 
-  # if (not tf.io.gfile.exists(constants.PROBE_1_TSV_PATH["validation"]) or
-  #     FLAGS.mode in ["all", "probes"]):
-  #   logging.info("generating probe_1.tsv")
+  if (not tf.io.gfile.exists(constants.PROBE_1_TSV_PATH["validation"]) or
+      FLAGS.mode in ["all", "probes"]):
+    logging.info("generating probe_1.tsv")
 
-  #   # set random seed for picking random movies
-  #   if FLAGS.random_seed != -1:
-  #     random.seed(FLAGS.random_seed)
+    # set random seed for picking random movies
+    if FLAGS.random_seed != -1:
+      random.seed(FLAGS.random_seed)
 
-  #   with tf.io.gfile.GFile(constants.MATRIX_PATHS["compressed"], "rb") as f:
-  #     loaded_matricies = np.load(f)
-  #   co_matrix = loaded_matricies["co"]
-  #   pmi_matrix = loaded_matricies["pmi"]
-  #   # with tf.io.gfile.GFile(constants.MATRIX_PATHS["co_matrix"], "rb") as f:
-  #   #   co_matrix = np.load(f)
+    with tf.io.gfile.GFile(constants.MATRIX_PATHS["co_matrix"], "rb") as f:
+      co_matrix = np.load(f)
 
-  #   # with tf.io.gfile.GFile(constants.MATRIX_PATHS["pmi_matrix"], "rb") as f:
-  #   #   pmi_matrix = np.load(f)
+    with tf.io.gfile.GFile(constants.MATRIX_PATHS["pmi_matrix"], "rb") as f:
+      pmi_matrix = np.load(f)
 
-  #   with tf.io.gfile.GFile(constants.MATRIX_PATHS["movie_ids"], "r") as f:
-  #     movie_ids = json.load(f)
+    with tf.io.gfile.GFile(constants.MATRIX_PATHS["movie_ids"], "r") as f:
+      movie_ids = json.load(f)
 
-  #   # define "popular" set as movie which appear in over FLAGS.popular_min_pop
+    # define "popular" set as movie which appear in over FLAGS.popular_min_pop
     # user sequences
 
     popular_movies = [x for x in movie_ids["all_movies"]
@@ -206,16 +198,16 @@ def main(_):
         a list of strings: the titles of the k most related movies
       """
       movie_id = movie_ids["movie_to_id"][movie]
-      row = pmi_matrix[movie_id]
-      related_ids = np.argsort(row)[::-1]
-
+      row = co_matrix[movie_id]
+      related_ids = list(np.argsort(row)[::-1])
+      related_ids.remove(movie_id)
       # convert to strings and ignore the 1st most related movie (itself)
-      return [movie_ids["id_to_movie"][x] for x in related_ids[:k + 1]][1:]
+      return [movie_ids["id_to_movie"][str(x)] for x in related_ids[:k]]
 
     probes = []
     for movie in filtered_movies:
       related_list = get_related_movies(movie, k=10)
-      random_list = random.sample(popular_movies, k=10)
+      random_list = random.sample(filtered_movies, k=10)
 
       for related, rand in zip(related_list, random_list):
         prompt = f"[User] Can you recommend me a movie like @ {movie} @"
