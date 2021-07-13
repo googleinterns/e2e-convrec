@@ -204,7 +204,7 @@ def main(_):
   # Limit number of checkpoints to fit within 5GB (if possible).
   model_parallelism, train_batch_size, keep_checkpoint_max = {
       "small": (1, 256, 16),
-      "base": (4, 128, 16),
+      "base": (4, 128, 32),
       "large": (8, 64, 10),
       "3B": (8, 16, 1),
       "11B": (8, 16, 1)}[FLAGS.size]

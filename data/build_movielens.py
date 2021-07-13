@@ -28,8 +28,6 @@ import random
 
 flags.DEFINE_string("movielens_dir", "./data/movielens", \
   "path to the movielens folder")
-flags.DEFINE_enum("dataset", "both", ["tags", "sequences", "both"], \
-  "which dataset to generate from movielens: tags, movie sequences, or both")
 flags.DEFINE_string("output_dir", "gs://e2e_central/data", "path to write TSVs")
 flags.DEFINE_enum("task", "all", ["ml_tags", "ml_sequences", "all"], \
   "task to build datasets for: ml_tags, ml_sequences, or all")
@@ -42,6 +40,8 @@ flags.DEFINE_float("seqs_test_size", .2, \
 flags.DEFINE_float("tags_test_size", .2, \
   "test split size for the tags dataset")
 flags.DEFINE_float("mask_rate", .15, "percent of ml_tag to mask")
+flags.DEFINE_bool("balance", True, \
+  "balance sequences data on movie frequency")
 FLAGS = flags.FLAGS
 
 def main(_):
@@ -85,28 +85,68 @@ def main(_):
       example:
       """
       result = []
-      for i in range(len(arr)):
+      random.shuffle(arr)
+      for i in range(1, len(arr)):
         target = arr[i]
-        related = arr[:i] + arr[i+1:]
-        input_length = random.randint(1, min(5, len(related)))
-        inputs = random.sample(related, k=input_length)
-        example = "@ %s @" % " @ ".join(inputs) + "\t" + target
+        # related = arr[:i] + arr[i+1:]
+        # input_length = random.randint(1, min(5, len(related)))
+        # inputs = random.sample(related, k=input_length)
+        example = "@ %s @" % " @ ".join(arr[:i]) + "\t" + target
         result.append(example)
 
       return result
+    
+    def balance_data(sequences, t=1):
+      random.shuffle(sequences)
+      frequencies = collections.defaultdict(int)
+
+      for sequence in sequences:
+        target = sequence.split("\t")[1]
+        frequencies[target] += 1
+      
+      balanced_sequences = []
+      for sequence in sequences:
+        target = sequence.split("\t")[1]
+        if random.random() > 1 - np.sqrt(t / frequencies[target]):
+          balanced_sequences.append(sequence)
+
+      balanced_frequencies = collections.defaultdict(int)
+      for sequence in balanced_sequences:
+        target = sequence.split("\t")[1]
+        balanced_frequencies[target] += 1
+      
+      freqs_array = list(frequencies.values())
+      bal_freq_array = list(balanced_frequencies.values())
+      print(f"lengths {len(sequences)},  {len(balanced_sequences)}")
+      print(f"mean {np.mean(freqs_array)},  {np.mean(bal_freq_array)}")
+      print(f"median {np.median(freqs_array)},  {np.median(bal_freq_array)}")
+      print(f"std {np.std(freqs_array)},  {np.std(bal_freq_array)}")
+
+      return balanced_sequences
 
 
-    seqs_formatted = list(flat_map(format_sequence, tqdm.tqdm(user_seqs)))
+    # seqs_formatted = list(flat_map(format_sequence, tqdm.tqdm(user_seqs)))\
+    seqs_formatted = []
+    for arr in tqdm.tqdm(user_seqs):
+      random.shuffle(arr)
+      for i in range(1, len(arr)):
+        target = arr[i]
+        example = "@ %s @" % " @ ".join(arr[:i]) + "\t" + target
+        seqs_formatted.append(example)
+    
+
+    if FLAGS.balance:
+      seqs_formatted = balance_data(seqs_formatted)
     seqs_train, seqs_test = train_test_split(seqs_formatted,
                                             test_size=FLAGS.seqs_test_size,
                                              random_state=1, shuffle=True)
 
-    # writ tsvs to bucket
+    # write tsvs to bucket
     logging.info("Writing TSVs")
-    write_tsv(tqdm.tqdm(seqs_train), os.path.join(FLAGS.output_dir,
-                                                  "new-ml-sequences-train.tsv"))
-    write_tsv(tqdm.tqdm(seqs_test), os.path.join(FLAGS.output_dir,
-                                                 "new-ml-sequences-validation.tsv"))
+    write_tsv(tqdm.tqdm(seqs_train), os.path.join(FLAGS.output_dir, "balanced_sequences",
+                                                  "ml-sequences-train-sub-t=1.tsv"))
+    write_tsv(tqdm.tqdm(seqs_test), os.path.join(FLAGS.output_dir, "balanced_sequences",
+                                                 "ml-sequences-validation-sub-t=1.tsv"))
 
   if FLAGS.task in ["ml_tags", "all"]:
     # Load and decode the genome scores
