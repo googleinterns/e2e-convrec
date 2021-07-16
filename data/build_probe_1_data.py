@@ -34,7 +34,7 @@ flags.DEFINE_enum("mode", "auto", ["ids", "probes", "all", "auto"],
 flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose"
                      + "-1 for a randomly picked seed")
 flags.DEFINE_integer("probe_min_pop", 10, "minimum poularity to be in probe")
-flags.DEFINE_integer("popular_min_pop", 500, "minimum popularity to be"
+flags.DEFINE_integer("popular_min_pop", 138, "minimum popularity to be"
                      + " considered a popular movie")
 
 
@@ -58,12 +58,10 @@ def create_pmi(co_matrix, movie_ids):
     popularities.append(movie_ids["popularity"][movie_ids["id_to_movie"][x]])
 
   popularities = np.array(popularities)
-  popularities[popularities<1] = 1
+  popularities[popularities < 1] = 1
   # PMI^2 is calculated as log(P(X, Y)^2 / (P(X) * P(Y)))
   pxy = co_matrix / movie_ids["num_sequences"]
-  print(np.min(pxy))
-  print(np.min(pxy[pxy>0]))
-  pxy[pxy==0] = 1e-12
+  pxy[pxy == 0] = 1e-12
   px = (popularities / movie_ids["num_sequences"]).reshape((-1, 1))
   py = (popularities / movie_ids["num_sequences"]).reshape((1, -1))
   pmi = np.log((pxy**2) / np.matmul(px, py))
@@ -95,6 +93,42 @@ def create_cooccurrence(sequences, movie_ids):
   return co_matrix
 
 
+def create_movie_ids(sequences_data):
+  """Build cooccurrence matrix from list of sequences.
+
+  Args:
+    sequences_data: a list of lists of strings containing the 10 movies in each
+      sequences in the movielens sequences dataset
+
+  Returns:
+    a dictionary movie_ids wwhich keeps track of a movie to id mapping for each
+    movie as well as the movie popularity and number of sequences information
+  """
+  movie_set = set()
+  popularity = collections.defaultdict(int)
+  # record each movie's popularity (# of sequences containing it)
+  for seq in sequences_data:
+    for movie in seq:
+      movie_set.add(movie)
+      popularity[movie] += 1
+
+  num_sequences = len(sequences_data)
+  movie_set = sorted(movie_set)
+  vocab_size = len(movie_set)
+  movie_to_id = dict(zip(movie_set, list(range(vocab_size))))
+  id_to_movie = dict(zip(list(range(vocab_size)), movie_set))
+
+  movie_ids = {
+      "all_movies": movie_set,
+      "movie_count": vocab_size,
+      "movie_to_id": movie_to_id,
+      "id_to_movie": id_to_movie,
+      "popularity": popularity,
+      "num_sequences": num_sequences
+  }
+  return movie_ids
+
+
 def main(_):
   """Generate probe 1 data from movielens sequences."""
   if (not tf.io.gfile.exists(constants.MATRIX_PATHS["movie_ids"]) or
@@ -118,29 +152,7 @@ def main(_):
       for sequence_str in tqdm(sequence_list):
         sequences_data.append(parse_sequence(sequence_str))
 
-    movie_set = set()
-    popularity = collections.defaultdict(int)
-
-    # record each movie's popularity (# of sequences containing it)
-    for seq in sequences_data:
-      for movie in seq:
-        movie_set.add(movie)
-        popularity[movie] += 1
-
-    num_sequences = len(sequences_data)
-    movie_set = sorted(movie_set)
-    vocab_size = len(movie_set)
-    movie_to_id = dict(zip(movie_set, list(range(vocab_size))))
-    id_to_movie = dict(zip(list(range(vocab_size)), movie_set))
-
-    movie_ids = {
-        "all_movies": movie_set,
-        "movie_count": vocab_size,
-        "movie_to_id": movie_to_id,
-        "id_to_movie": id_to_movie,
-        "popularity": popularity,
-        "num_sequences": num_sequences
-    }
+    movie_ids = create_movie_ids(sequences_data)
 
     with tf.io.gfile.GFile(constants.MATRIX_PATHS["movie_ids"], "w") as f:
       json.dump(movie_ids, f)
@@ -181,11 +193,17 @@ def main(_):
     popular_movies = [x for x in movie_ids["all_movies"]
                       if movie_ids["popularity"][x] >= FLAGS.popular_min_pop]
 
+    logging.info("popular movies: filtered %d movies where popularity > %d",
+                 len(popular_movies), FLAGS.popular_min_pop)
+
     # define "filtered" set as movie which appear in over FLAGS.probe_min_pop
     # user sequences
 
     filtered_movies = [x for x in movie_ids["all_movies"]
                        if movie_ids["popularity"][x] >= FLAGS.probe_min_pop]
+
+    logging.info("filtered movies: filtered %d movies where popularity > %d",
+                 len(filtered_movies), FLAGS.probe_min_pop)
 
     def get_related_movies(movie, k=5):
       """Get the k closest related movies as sorted by pmi.
@@ -198,7 +216,7 @@ def main(_):
         a list of strings: the titles of the k most related movies
       """
       movie_id = movie_ids["movie_to_id"][movie]
-      row = co_matrix[movie_id]
+      row = pmi_matrix[movie_id]
       related_ids = list(np.argsort(row)[::-1])
       related_ids.remove(movie_id)
       # convert to strings and ignore the 1st most related movie (itself)
@@ -207,7 +225,7 @@ def main(_):
     probes = []
     for movie in filtered_movies:
       related_list = get_related_movies(movie, k=10)
-      random_list = random.sample(filtered_movies, k=10)
+      random_list = random.sample(popular_movies, k=10)
 
       for related, rand in zip(related_list, random_list):
         prompt = f"[User] Can you recommend me a movie like @ {movie} @"

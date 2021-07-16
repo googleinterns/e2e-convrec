@@ -11,37 +11,36 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Unit Tests for E2E Convrec modules"""
+"""Unit Tests for E2E Convrec modules."""
 import unittest
-from absl import flags
-import sacrebleu
-import numpy as np
-from trainer import metrics
 
 from data import build_redial
+import numpy as np
+import sacrebleu
+from trainer import metrics
 
-FLAGS = flags.FLAGS
 
 class TestMetrics(unittest.TestCase):
-  """Class for testing the metrics functions"""
+  """Class for testing the metrics functions."""
 
   def test_sklearn_recall(self):
-    """Tests for trainer.metrics.sklearn_recall"""
-    y_true = np.array(['cat', 'dog', 'pig', 'cat', 'dog', 'pig'])
-    y_pred = np.array(['cat', 'pig', 'dog', 'cat', 'cat', 'dog'])
+    """Tests for trainer.metrics.sklearn_recall."""
+    y_true = np.array(["cat", "dog", "pig", "cat", "dog", "pig"])
+    y_pred = np.array(["cat", "pig", "dog", "cat", "cat", "dog"])
 
-    titles = np.array(['the dark knight (2008)', 'star wars (1977)',
-                       'spiderman (2002)'])
-    titles_pred = np.array(['the wrong movie (0000)', 'star wars (1977)',
-                            'another mistake (2002)'])
+    titles = np.array(["the dark knight (2008)", "star wars (1977)",
+                       "spiderman (2002)"])
+    titles_pred = np.array(["the wrong movie (0000)", "star wars (1977)",
+                            "another mistake (2002)"])
+    recall = round(metrics.sklearn_recall(y_true, y_pred)["sklearn_recall"], 2)
+    self.assertEqual(recall, .33, "expected .33")
 
-    self.assertEqual(round(metrics.sklearn_recall(y_true, y_pred) \
-      ["sklearn_recall"], 2), .33, "expected .33")
-    self.assertEqual(round(metrics.sklearn_recall(titles, titles_pred) \
-      ["sklearn_recall"], 2), .33, "expected .33")
+    recall = round(metrics.sklearn_recall(titles,
+                                          titles_pred)["sklearn_recall"], 2)
+    self.assertEqual(recall, .33, "expected .33")
 
   def test_replace_titles(self):
-    """Tests for trainer.metrics.replace_titles"""
+    """Tests for trainer.metrics.replace_titles."""
     test_inputs = [
         "I like the movie @ Unforgiven (2002) @ and @ Dirty Harry (1982) @",
         "@ movie (2002) @ is a good move @ haha @"
@@ -49,7 +48,7 @@ class TestMetrics(unittest.TestCase):
 
     test_outputs = [
         "I like the movie __unk__ and __unk__",
-        "__unk__ is a good move @ haha @" # shouldn't remove @ haha @ - no year
+        "__unk__ is a good move @ haha @"  # shouldn't remove @ haha @ - no year
     ]
 
     for test_input, test_output in zip(test_inputs, test_outputs):
@@ -59,9 +58,8 @@ class TestMetrics(unittest.TestCase):
     self.assertEqual((test_outputs, test_outputs),
                      metrics.replace_titles(test_inputs, test_inputs))
 
-
   def test_t2t_bleu(self):
-    """Tests for trainer.metrics.t2t_bleu"""
+    """Tests for trainer.metrics.t2t_bleu."""
     targets = [
         "This is the first sentence",
         "this sentence is next",
@@ -74,12 +72,13 @@ class TestMetrics(unittest.TestCase):
     ]
     self.assertEqual(metrics.t2t_bleu(targets, targets)["t2t_bleu"], 100,
                      "identical text should score 100")
-    diff = abs(sacrebleu.corpus_bleu(predictions, [targets]).score \
-                - metrics.t2t_bleu(targets, predictions)["t2t_bleu"])
+    sacrebleu_score = sacrebleu.corpus_bleu(predictions, [targets]).score
+    t2t_score = metrics.t2t_bleu(targets, predictions)["t2t_bleu"]
+    diff = abs(sacrebleu_score - t2t_score)
     self.assertLess(diff, 3, "t2t score should be similar to sacrebleu")
 
   def test_bleu_no_titles(self):
-    """Tests for trainer.metrics.bleu_no_titles"""
+    """Tests for trainer.metrics.bleu_no_titles."""
     tar_titles = [
         "You should watch @ Inception (2010) @",
         ("I don't think it's bad @ all, @ Iron Man (2008) @"
@@ -110,7 +109,7 @@ class TestMetrics(unittest.TestCase):
                      "score should equal t2t bleu with manually removed titles")
 
   def test_recall_from_metadata(self):
-    """Tests for trainer.metrics.recall_from_metadata"""
+    """Tests for trainer.metrics.recall_from_metadata."""
     metadata = [
         # case 1
         {
@@ -181,5 +180,21 @@ class TestMetrics(unittest.TestCase):
                                                     all_metadata), 99,
                        "Running recall on targets should result in ~100")
 
-if __name__ == '__main__':
+  def test_probe_pair_accuracy(self):
+    """Tests for trainer.metrics.probe_pair_accuracy."""
+
+    test_predictions = [
+        np.arange(100),
+        -1 * np.arange(100),
+        [1, 2, 3, 2, 4, 5, 6, 4, 2, 6]
+    ]
+
+    expected_outputs = [0.0, 1.0, .4]
+
+    for pred, expected_output in zip(test_predictions, expected_outputs):
+      output = metrics.probe_pair_accuracy([], pred)["pair_accuracy"]
+      self.assertEqual(output, expected_output,
+                       f"incorrect ppa for {pred}: {output}")
+
+if __name__ == "__main__":
   unittest.main()
