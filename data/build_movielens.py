@@ -136,7 +136,7 @@ def main(_):
     
 
     if FLAGS.balance:
-      seqs_formatted = balance_data(seqs_formatted)
+      seqs_formatted = balance_data(seqs_formatted, t=0.5)
     seqs_train, seqs_test = train_test_split(seqs_formatted,
                                             test_size=FLAGS.seqs_test_size,
                                              random_state=1, shuffle=True)
@@ -144,9 +144,9 @@ def main(_):
     # write tsvs to bucket
     logging.info("Writing TSVs")
     write_tsv(tqdm.tqdm(seqs_train), os.path.join(FLAGS.output_dir, "balanced_sequences",
-                                                  "ml-sequences-train-sub-t=1.tsv"))
+                                                  "ml-sequences-train-sub-t=5e-1.tsv"))
     write_tsv(tqdm.tqdm(seqs_test), os.path.join(FLAGS.output_dir, "balanced_sequences",
-                                                 "ml-sequences-validation-sub-t=1.tsv"))
+                                                 "ml-sequences-validation-sub-t=5e-1.tsv"))
 
   if FLAGS.task in ["ml_tags", "all"]:
     # Load and decode the genome scores
