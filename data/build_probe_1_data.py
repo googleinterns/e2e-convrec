@@ -205,6 +205,8 @@ def main(_):
     logging.info("filtered movies: filtered %d movies where popularity > %d",
                  len(filtered_movies), FLAGS.probe_min_pop)
 
+    filtered_set = set(filtered_movies)
+    
     def get_related_movies(movie, k=5):
       """Get the k closest related movies as sorted by pmi.
 
@@ -220,10 +222,15 @@ def main(_):
       related_ids = list(np.argsort(row)[::-1])
       related_ids.remove(movie_id)
       # convert to strings and ignore the 1st most related movie (itself)
-      return [movie_ids["id_to_movie"][str(x)] for x in related_ids[:k]]
+      movie_titles = [movie_ids["id_to_movie"][str(x)] for x in related_ids]
+
+      # filter out movies with popularity < 10
+      movie_titles = [x for x in movie_titles if x in filtered_set]
+
+      return movie_titles[:k]
 
     probes = []
-    for movie in filtered_movies:
+    for movie in tqdm(filtered_movies):
       related_list = get_related_movies(movie, k=10)
       random_list = random.sample(popular_movies, k=10)
 
