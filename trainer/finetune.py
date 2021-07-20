@@ -14,23 +14,29 @@
 """Script for Running, Training, and Evaluating E2E Convrec Experiments."""
 
 # SETUP
+import json
 import os
 import warnings
-import json
+
 from absl import app
 from absl import flags
 from absl import logging
-import tensorflow.compat.v1 as tf
 import t5
-from trainer import preprocessing, constants, metrics
+import tensorflow.compat.v1 as tf
+from trainer import constants
+from trainer import metrics
+from trainer import preprocessing
 
 FLAGS = flags.FLAGS
-flags.DEFINE_integer('steps', 6000, "Finetuning training steps.")
+flags.DEFINE_integer("steps", 6000, "Finetuning training steps.")
 flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
                   "model size")
 flags.DEFINE_string("name", "default", "name/description of model  version")
-flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all", "export"],
-                  "run mode: train, evaluate, or all")
+flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all", "export",
+                                  "probe_1", "probe_2"],
+                  "run modes: train, evaluate, export, or all. "
+                  + "probe modes: probe_1 or probe_2 to generate log-likelihood"
+                  + " scores for probes")
 flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations",
                                                  "ml_sequences", "ml_tags",
                                                  "ml_all", "rd_tags",
@@ -38,17 +44,18 @@ flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations",
                   ("data tasks: rd_recommendations, ml_tags, ml_sequences, ",
                    "ml_all (seqs + tags), rd_tags (redial + ml tags), ",
                    "rd_sequences (redial + ml seqs), combined (all three)"))
-flags.DEFINE_integer('ckpt_to_export', -1, ("which model ckpt to export. Enter",
+flags.DEFINE_integer("ckpt_to_export", -1, ("which model ckpt to export. Enter",
                                             "a step number or -1 for latest"))
 flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
                   "version of the tags dataset: normal, reversed, or masked")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
-flags.DEFINE_string("tpu_topology", "2x2", "topology of tpu subfolder used for training")
+flags.DEFINE_string("tpu_topology", "2x2", "topology of tpu  used for training")
 flags.DEFINE_string("subfolder", None, ("subfolder under size folder to put ",
                                         "model in. if None, the model folder",
                                         " will be in bucket/models/size"))
+
 
 def main(_):
   """Main method for fintuning: builds, trains, and evaluates t5."""
@@ -59,19 +66,19 @@ def main(_):
   if FLAGS.subfolder is not None:
     model_dir = os.path.join(model_dir, FLAGS.subfolder)
   model_dir = os.path.join(model_dir, FLAGS.name)
-  logging.info("MODEL_DIR: " + model_dir)
+  logging.info("MODEL_DIR: %s", model_dir)
 
   logging.info("----DETECTING TPUs----")
   try:
     tpu = tf.distribute.cluster_resolver.TPUClusterResolver()  # TPU detection
     tpu_address = tpu.get_master()
-    logging.info('Running on TPU:', tpu_address)
+    logging.info("Running on TPU: %s", str(tpu_address))
   except ValueError:
-    raise BaseException('ERROR: Not connected to a TPU runtime')
+    raise BaseException("ERROR: Not connected to a TPU runtime")
 
   # load or build data
-  if tf.io.gfile.exists(constants.RD_TSV_PATH["train"]) \
-    and tf.io.gfile.exists(constants.RD_TSV_PATH["validation"]):
+  if (tf.io.gfile.exists(constants.RD_TSV_PATH["train"]) and
+      tf.io.gfile.exists(constants.RD_TSV_PATH["validation"])):
     logging.info("TSV's Found")
     # Used cached data and counts.
     tf.logging.info("Loading Redial from cache.")
@@ -83,21 +90,21 @@ def main(_):
     num_rd_examples = {}
     for split, path in constants.RD_JSONL_PATH.items():
       logging.info(path)
-      num_rd_examples[split] = \
-        preprocessing.rd_jsonl_to_tsv(path, constants.RD_TSV_PATH[split])
+      tsv_path = constants.RD_TSV_PATH[split]
+      num_rd_examples[split] = preprocessing.rd_jsonl_to_tsv(path, tsv_path)
     json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
   # set up the rd_recommendations task (training on redial conversations)
-  if FLAGS.task in \
-    ["rd_recommendations", "rd_tags", "rd_sequences", "combined"]:
+  if FLAGS.task in ["rd_recommendations", "rd_tags", "rd_sequences",
+                    "combined"]:
     t5.data.TaskRegistry.add(
         "rd_recommendations",
         # Supply a function which returns a tf.data.Dataset.
         dataset_fn=preprocessing.dataset_fn_wrapper("rd_recommendations"),
         splits=["train", "validation"],
         # Supply a function which preprocesses text from the tf.data.Dataset.
-        text_preprocessor=\
-          [preprocessing.preprocessor_wrapper("rd_recommendations")],
+        text_preprocessor=[
+            preprocessing.preprocessor_wrapper("rd_recommendations")],
         # Use the same vocabulary that we used for pre-training.
         # sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
@@ -138,6 +145,17 @@ def main(_):
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy/recall and bleu as our evaluation metrics.
         metric_fns=[metrics.t2t_bleu, metrics.sklearn_recall])
+
+  if "probe" in FLAGS.mode:
+    t5.data.TaskRegistry.add(
+        FLAGS.mode,
+        # Supply a function which returns a tf.data.Dataset.
+        dataset_fn=preprocessing.dataset_fn_wrapper(FLAGS.mode),
+        splits=["validation"],
+        # Supply a function which preprocesses text from the tf.data.Dataset.
+        text_preprocessor=[
+            preprocessing.preprocessor_wrapper("rd_recommendations")],
+        metric_fns=[metrics.probe_pair_accuracy])
 
   task_combination = {
       "rd_tags": ["rd_recommendations", "ml_tags"],
@@ -195,19 +213,29 @@ def main(_):
         compute_sequence_length=False
     )
 
+  if "probe" in FLAGS.mode:
+    model.batch_size = train_batch_size * 8
+
+    for steps in range(999900, 999901+FLAGS.steps, 2000):
+      model.eval(
+          mixture_or_task_name=FLAGS.mode,
+          checkpoint_steps=steps,
+          compute_sequence_length=False,
+          eval_with_score=True
+      )
 
   # Export the SavedModel
   export_dir = os.path.join(model_dir, "export")
 
-  model.batch_size = 1 # make one prediction per call
+  model.batch_size = 1  # make one prediction per call
   saved_model_path = model.export(
       export_dir,
       checkpoint_step=FLAGS.ckpt_to_export,  # use most recent
       beam_size=FLAGS.beam_size,
       temperature=FLAGS.temperature,
-      vocabulary = t5.data.get_default_vocabulary()
+      vocabulary=t5.data.get_default_vocabulary()
   )
-  logging.info(f"Model saved to: {saved_model_path}")
+  logging.info("Model saved to: %s", str(saved_model_path))
 
 if __name__ == "__main__":
   app.run(main)

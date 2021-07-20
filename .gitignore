@@ -10,3 +10,5 @@ data/movielens
 *.pyc
 *pb2.py
 *.zip
+.vscode/
+multiple_jobs.sh
