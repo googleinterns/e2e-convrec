@@ -42,12 +42,14 @@ flags.DEFINE_float("tags_test_size", .2, \
 flags.DEFINE_float("mask_rate", .15, "percent of ml_tag to mask")
 flags.DEFINE_bool("balance", True, \
   "balance sequences data on movie frequency")
+flags.DEFINE_integer("random_seed", 1, "seed for random dataset spliting." 
+                     + "Choose -1 for a random seed")
 FLAGS = flags.FLAGS
 
 def main(_):
   """Builds the movielens datasets and saves tsvs in output_dir"""
-
-  random.seed(42)
+  if FLAGS.random_seed != -1: 
+    random.seed(FLAGS.random_seed)
 
   # Define filepaths
   paths = {

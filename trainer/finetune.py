@@ -35,7 +35,9 @@ flags.DEFINE_string("name", "default", "name/description of model  version")
 flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all", "export",
                                   "probe_1", "probe_1_sequences", "probe_2",
                                   "probe_3", "probe_4"],
-                  "run mode: train, evaluate, or all")
+                  "run modes: train, evaluate, export, or all. "
+                  + "probe modes: probe_1/2/3/4 to generate log-likelihood"
+                  + " scores for probes")
 flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations",
                                                  "ml_sequences", "ml_tags", "ml_reviews",
                                                  "ml_all", "rd_tags", "rd_reviews",
