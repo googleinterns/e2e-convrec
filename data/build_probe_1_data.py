@@ -34,8 +34,11 @@ flags.DEFINE_enum("mode", "auto", ["ids", "probes", "all", "auto"],
 flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose"
                      + "-1 for a randomly picked seed")
 flags.DEFINE_integer("probe_min_pop", 10, "minimum poularity to be in probe")
-flags.DEFINE_integer("popular_min_pop", 138, "minimum popularity to be"
+flags.DEFINE_integer("popular_min_pop", 500, "minimum popularity to be"
                      + " considered a popular movie")
+flags.DEFINE_enum("format", "normal", ["normal", "flipped"], "specify the probe"
+                  + " format: normal for movie a -> related/random movie b, "
+                  + "flipped for related/random movie b -> movie a")
 
 
 def create_pmi(co_matrix, movie_ids):
@@ -206,7 +209,7 @@ def main(_):
                  len(filtered_movies), FLAGS.probe_min_pop)
 
     filtered_set = set(filtered_movies)
-    
+
     def get_related_movies(movie, k=5):
       """Get the k closest related movies as sorted by pmi.
 
@@ -235,17 +238,22 @@ def main(_):
       random_list = random.sample(popular_movies, k=10)
 
       for related, rand in zip(related_list, random_list):
-        prompt = f"[User] Can you recommend me a movie like @ {movie} @"
-        probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
-        probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")
+
+        if FLAGS.format == "normal":
+          prompt = f"[User] Can you recommend me a movie like @ {movie} @"
+          probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
+          probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")
+          probe_1_path = constants.PROBE_1_TSV_PATH["validation"]
+        elif FLAGS.format == "flipped":
+          question = "[User] Can you recommend me a movie like"
+          response = f"Sure, have you seen @ {movie} @?"
+          probes.append(f"{question} @ {related} @\t{response}")
+          probes.append(f"{question} @ {rand} @\t{response}")
+          path, extension = constants.PROBE_1_TSV_PATH["validation"].split(".")
+          probe_1_path = path + "-flipped" + extension
 
     logging.info("%d pairs generated", len(probes))
-    if FLAGS.version == 'normal':
-      path = constants.PROBE_1_TSV_PATH["validation"]
-    else:
-      path = constants.PROBE_1_SEQ_PATH["validation"]
-
-    with tf.io.gfile.GFile(path, "w") as f:
+    with tf.io.gfile.GFile(probe_1_path, "w") as f:
       for line in probes:
         f.write(f"{line}\n")
 
