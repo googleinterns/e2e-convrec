@@ -28,8 +28,8 @@ from trainer import constants
 FLAGS = flags.FLAGS
 flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose"
                      + "-1 for a randomly picked seed")
-flags.DEFINE_integer("probe_min_pop", 10, "minimum poularity to be in probe")
-flags.DEFINE_integer("popular_min_pop", 500, "minimum popularity to be"
+flags.DEFINE_integer("probe_min_pop", 30, "minimum poularity to be in probe")
+flags.DEFINE_integer("popular_min_pop", 138, "minimum popularity to be"
                      + " considered a popular movie")
 
 
@@ -49,16 +49,22 @@ def main(_):
   popular_movies = [x.lower() for x in movie_ids["all_movies"]
                     if movie_ids["popularity"][x] >= FLAGS.popular_min_pop]
 
+  logging.info("popular movies: filtered %d movies where popularity > %d",
+               len(popular_movies), FLAGS.popular_min_pop)
+
   # define "filtered" set as movie which appear in over FLAGS.probe_min_pop
   # user sequences
 
   filtered_movies = [x.lower() for x in movie_ids["all_movies"]
                      if movie_ids["popularity"][x] >= FLAGS.probe_min_pop]
 
+  logging.info("filtered movies: filtered %d movies where popularity > %d",
+               len(filtered_movies), FLAGS.probe_min_pop)
+
   probes = []
   tag_data = {}
-
-  with tf.io.gfile.GFile(constants.ML_TAGS_TSV_PATH["train"], "r") as f:
+  # unique_tags = set()
+  with tf.io.gfile.GFile(constants.ML_TAGS_V1_TSV_PATH["train"], "r") as f:
     for line in tqdm.tqdm(f):
       movie, tags = line.replace("\n", "").split("\t")
       movie = movie.strip().lower()
@@ -69,8 +75,8 @@ def main(_):
   # filter out discrepencies between sequences and tag data
   popular_movies = [x for x in popular_movies if x in tag_data]
   for movie, tags in tag_data.items():
-    for tag in tags:
 
+    for tag in tags:
       # Find the list of popular movies not associated with the current tag
       popular_filtered = [x for x in popular_movies if tag not in tag_data[x]]
       pop_movie = random.choice(popular_filtered)

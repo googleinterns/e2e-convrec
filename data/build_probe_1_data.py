@@ -24,7 +24,6 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 from tqdm import tqdm
 from trainer import constants
-
 FLAGS = flags.FLAGS
 flags.DEFINE_enum("mode", "auto", ["ids", "probes", "all", "auto"],
                   "auto to build whatever's missing, ids to rebuild ids, "
@@ -33,10 +32,11 @@ flags.DEFINE_enum("mode", "auto", ["ids", "probes", "all", "auto"],
                   + "pmi matricies")
 flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose"
                      + "-1 for a randomly picked seed")
-flags.DEFINE_integer("probe_min_pop", 10, "minimum poularity to be in probe")
-flags.DEFINE_integer("popular_min_pop", 500, "minimum popularity to be"
+flags.DEFINE_integer("probe_min_pop", 30, "minimum poularity to be in probe")
+flags.DEFINE_integer("popular_min_pop", 138, "minimum popularity to be"
                      + " considered a popular movie")
-flags.DEFINE_enum("format", "normal", ["normal", "flipped"], "specify the probe"
+flags.DEFINE_enum("format", "normal", ["normal", "percentile", "flipped"],
+                  "specify the probe"
                   + " format: normal for movie a -> related/random movie b, "
                   + "flipped for related/random movie b -> movie a")
 
@@ -223,23 +223,69 @@ def main(_):
       movie_id = movie_ids["movie_to_id"][movie]
       row = pmi_matrix[movie_id]
       related_ids = list(np.argsort(row)[::-1])
+      # convert to strings and ignore the 1st most related movie (itself)
+      related_ids.remove(movie_id)
+      movie_titles = [movie_ids["id_to_movie"][str(x)] for x in related_ids]
+
+      # filter out movies with popularity < 10
+      movie_titles = [x for x in movie_titles if x in filtered_set]
+      return movie_titles[:k]
+
+    def get_unrelated_movies(movie, k=5):
+      """Get the k closest related movies as sorted by pmi.
+
+      Args:
+        movie: a string representing the title of the query movie
+        k: an int representing the number of related movies to retrieve
+
+      Returns:
+        a list of strings: the titles of the k most related movies
+      """
+      movie_id = movie_ids["movie_to_id"][movie]
+      row = pmi_matrix[movie_id]
+      related_ids = list(np.argsort(row))
       related_ids.remove(movie_id)
       # convert to strings and ignore the 1st most related movie (itself)
       movie_titles = [movie_ids["id_to_movie"][str(x)] for x in related_ids]
 
       # filter out movies with popularity < 10
       movie_titles = [x for x in movie_titles if x in filtered_set]
+      movie_titles = movie_titles[:len(movie_titles) // 4]
+      return random.sample(movie_titles, k)
 
-      return movie_titles[:k]
-
+    if FLAGS.format == "percentile":
+      percentiles = {}
+      percentile_lists = collections.defaultdict(list)
+      for movie in tqdm(filtered_movies):
+        pop = movie_ids["popularity"][movie]
+        less_than = [x for x in movie_ids["all_movies"]
+                     if movie_ids["popularity"][x] < pop]
+        percentile = round(float(len(less_than))
+                           / len(movie_ids["all_movies"]), 2)
+        percentiles[movie] = percentile
+        percentile_lists[percentile].append(movie)
     probes = []
+
     for movie in tqdm(filtered_movies):
       related_list = get_related_movies(movie, k=10)
-      random_list = random.sample(popular_movies, k=10)
+
+      if FLAGS.format == "percentile":
+        random_list = []
+
+        for rel in related_list:
+          perc_list = percentile_lists[percentiles[rel]].copy()
+          if rel in perc_list:
+            perc_list.remove(rel)
+          if movie in perc_list:
+            perc_list.remove(movie)
+          random_list.append(random.choice(perc_list))
+      elif FLAGS.format == "unrelated":
+        random_list = get_unrelated_movies(movie, k=10)
+      else:
+        random_list = random.sample(popular_movies, k=10)
 
       for related, rand in zip(related_list, random_list):
-
-        if FLAGS.format == "normal":
+        if FLAGS.format != "flipped":
           prompt = f"[User] Can you recommend me a movie like @ {movie} @"
           probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
           probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")

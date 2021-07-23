@@ -13,63 +13,96 @@
 # limitations under the License.
 """Scripts For Building Probe 4 (Movie/Tag-to-Movie Recommendations)."""
 
-
-import tensorflow.compat.v1 as tf
-from tqdm import tqdm
-from collections import defaultdict
-import sklearn
-import numpy as np
 import json
 import random
+
 from absl import app
 from absl import flags
 from absl import logging
-import tqdm
+import numpy as np
+import tensorflow.compat.v1 as tf
+from tqdm import tqdm
+from trainer import constants
+
+FLAGS = flags.FLAGS
+flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose"
+                     + "-1 for a randomly picked seed")
+flags.DEFINE_integer("probe_min_pop", 30, "minimum poularity to be in probe")
+flags.DEFINE_integer("popular_min_pop", 138, "minimum popularity to be"
+                     + " considered a popular movie")
 
 
 def main(_):
   """generate probe 4 data from movielens tags."""
-  logging.info("generating probe_1.tsv")
-  random.seed(42)
+  logging.info("generating probe_4.tsv")
+  # set random seed for picking random movies
+  if FLAGS.random_seed != -1:
+    random.seed(FLAGS.random_seed)
 
-  with tf.io.gfile.GFile("gs://e2e_central/data/probes/co_matrix.npy", 'rb') as f:
-    co_matrix = np.load(f)
+  with tf.io.gfile.GFile(constants.MATRIX_PATHS["pmi_matrix"], "rb") as f:
+    pmi_matrix = np.load(f)
 
-  with tf.io.gfile.GFile("gs://e2e_central/data/probes/mi_matrix.npy", 'rb') as f:
-    mi_matrix = np.load(f)
-
-  with tf.io.gfile.GFile("gs://e2e_central/data/probes/movie_id_info.json", 'r') as f:
+  with tf.io.gfile.GFile(constants.MATRIX_PATHS["movie_ids"], "r") as f:
     movie_ids = json.load(f)
-  
-  
 
-  # define "popular" set as moview which appear in over 500 user sequences
-  popular_movies = [x.lower() for x in movie_ids["all_movies"] if movie_ids["popularity"][x] >= 500]
-  
-  # filter out movies which appear in under 10 user sequences
-  filtered_movies = [x.lower() for x in movie_ids["all_movies"] if movie_ids["popularity"][x] >= 10]
+  # define "popular" set as movie which appear in over FLAGS.popular_min_pop
+  # user sequences
 
+  popular_movies = [x.lower() for x in movie_ids["all_movies"]
+                    if movie_ids["popularity"][x] >= FLAGS.popular_min_pop]
+
+  logging.info("popular movies: filtered %d movies where popularity > %d",
+               len(popular_movies), FLAGS.popular_min_pop)
+
+  # define "filtered" set as movie which appear in over FLAGS.probe_min_pop
+  # user sequences
+
+  filtered_movies = [x.lower() for x in movie_ids["all_movies"]
+                     if movie_ids["popularity"][x] >= FLAGS.probe_min_pop]
+
+  logging.info("filtered movies: filtered %d movies where popularity > %d",
+               len(filtered_movies), FLAGS.probe_min_pop)
+
+  # lowercase movie titles to match ml_tags data
   movie_ids["all_movies"] = [x.lower() for x in movie_ids["all_movies"]]
-  movie_ids["movie_to_id"] = dict(zip(movie_ids["all_movies"], list(range(len(movie_ids["all_movies"])))))
-  movie_ids["id_to_movie"] = dict(zip(list(range(len(movie_ids["all_movies"]))), movie_ids["all_movies"]))
+  ids = list(range(len(movie_ids["all_movies"])))
+  movie_ids["movie_to_id"] = dict(zip(movie_ids["all_movies"], ids))
+  movie_ids["id_to_movie"] = dict(zip(ids, movie_ids["all_movies"]))
+
   def intersection(list1, list2):
     return [x for x in list1 if x in list2]
-  
+
+  filtered_set = set(filtered_movies)
   def get_related_movies(movie, k=5):
+    """Get the k closest related movies as sorted by pmi.
+
+    Args:
+      movie: a string representing the title of the query movie
+      k: an int representing the number of related movies to retrieve
+
+    Returns:
+      a list of strings: the titles of the k most related movies
+    """
     movie_id = movie_ids["movie_to_id"][movie]
-    row = mi_matrix[movie_id]
-    related_ids = np.argsort(row)[::-1]
-    return [movie_ids["id_to_movie"][x] for x in related_ids[:k + 1]][1:]
+    row = pmi_matrix[movie_id]
+    related_ids = list(np.argsort(row)[::-1])
+    # convert to strings and ignore the 1st most related movie (itself)
+    related_ids.remove(movie_id)
+    movie_titles = [movie_ids["id_to_movie"][x] for x in related_ids]
+
+    # filter out movies with popularity < 10
+    movie_titles = [x for x in movie_titles if x in filtered_set]
+    return movie_titles[:k]
 
   probes = []
   tag_data = {}
 
-  with tf.io.gfile.GFile("gs://e2e_central/data/ml-tags-train.tsv", 'r') as f:
-    for line in tqdm.tqdm(f):
+  with tf.io.gfile.GFile(constants.ML_TAGS_V1_TSV_PATH["train"], "r") as f:
+    for line in tqdm(f):
       movie, tags = line.replace("\n", "").split("\t")
       movie = movie.strip().lower()
       tags = list(set(tags.lower().split(", ")))
-      if movie in filtered_movies:
+      if movie in filtered_set:
         tag_data[movie] = tags
 
   # filter out discrepencies between sequences and tag data
@@ -82,12 +115,16 @@ def main(_):
         if len(common_tags) > 5:
           common_tags = random.sample(common_tags, k=5)
         for tag in intersection(tags, tag_data[related]):
-          popular_filtered = [x for x in popular_movies if tag not in tag_data[x]]
-          probes.append(f"[User] Can you recommend me a {tag} movie like @ {movie} @?\tSure, have you seen @ {related} @?")
-          probes.append(f"[User] Can you recommend me a {tag} movie like @ {movie} @?\tSure, have you seen @ {random.choice(popular_filtered)} @?")
+          # Find the list of popular movies not associated with the current tag
+          popular_filtered = [x for x in popular_movies
+                              if tag not in tag_data[x]]
+          rand = random.choice(popular_filtered)
+          inp = f"[User] Can you recommend me a {tag} movie like @ {movie} @?"
+          probes.append(f"{inp}?\tSure, have you seen @ {related} @?")
+          probes.append(f"{inp}\tSure, have you seen @ {rand} @?")
 
-  logging.info(f"{len(probes)} pairs generated")
-  with tf.io.gfile.GFile(constants.PROBE_4_TSV_PATH["validation"], 'w') as f:
+  logging.info("%d pairs generated", len(probes))
+  with tf.io.gfile.GFile(constants.PROBE_4_TSV_PATH["validation"], "w") as f:
     for line in probes:
       f.write(f"{line}\n")
 if __name__ == "__main__":
