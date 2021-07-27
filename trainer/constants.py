@@ -34,27 +34,24 @@ RD_TSV_PATH = {
     "validation": os.path.join(DATA_DIR, "rd-validation.tsv")
 }
 ML_SEQ_TSV_PATH = {
-    "train": os.path.join(DATA_DIR, "balanced_sequences", "ml-sequences-train-sub-t=1.tsv"),
-    "validation": os.path.join(DATA_DIR, "balanced_sequences", "ml-sequences-validation-sub-t=1.tsv")
+    "train": os.path.join(DATA_DIR, "ml-sequences-train.tsv"),
+    "validation": os.path.join(DATA_DIR, "ml-sequences-validation.tsv"),
+    "full_train": os.path.join(DATA_DIR, "ml-sequences-full-train.tsv"),
+    "full_validation": os.path.join(DATA_DIR, 
+                                    "ml-sequences-full-validation.tsv")
 }
 ML_TAGS_TSV_PATH = {
     "train": os.path.join(DATA_DIR, "ml-tags-train.tsv"),
-    "validation": os.path.join(DATA_DIR, "ml-tags-validation.tsv")
-}
-ML_TAGS_V1_TSV_PATH = {
-    "train": os.path.join(DATA_DIR, "ml-tags-train-v1.tsv"),
-    "validation": os.path.join(DATA_DIR, "ml-tags-validation-v1.tsv")
-}
-ML_TAGS_MASKED_TSV_PATH = {
-    "train": os.path.join(DATA_DIR, "ml-tags-train-masked-3.tsv"),
-    "validation": os.path.join(DATA_DIR, "ml-tags-validation-masked-3.tsv")
+    "validation": os.path.join(DATA_DIR, "ml-tags-validation.tsv"),
+    "full_train": os.path.join(DATA_DIR, "ml-tags-full-train.tsv"),
+    "full_validation": os.path.join(DATA_DIR, "ml-tags-full-validation.tsv")
 }
 ML_REVIEWS_TSV_PATH = {
     "train": os.path.join(DATA_DIR, "ml-reviews-train.tsv"),
     "validation": os.path.join(DATA_DIR, "ml-reviews-validation.tsv")
 }
 PROBE_1_TSV_PATH = {
-    "validation": os.path.join(PROBE_DIR, "probe_1_30_138.tsv")
+    "validation": os.path.join(PROBE_DIR, "probe_1.tsv")
 }
 PROBE_1_SEQ_PATH = {
     "validation": os.path.join(PROBE_DIR, "probe_1_sequences.tsv")
@@ -71,6 +68,5 @@ PROBE_4_TSV_PATH = {
 MATRIX_PATHS = {
     "movie_ids": os.path.join(PROBE_DIR, "movie_id_info.json"),
     "co_matrix": os.path.join(PROBE_DIR, "co_matrix.npy"),
-    "pmi_matrix": os.path.join(PROBE_DIR, "pmi_matrix.npy"),
-    "compressed": os.path.join(PROBE_DIR, "co_pmi_matricies.npz")
+    "pmi_matrix": os.path.join(PROBE_DIR, "pmi_matrix.npy")
 }

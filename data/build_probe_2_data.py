@@ -35,7 +35,7 @@ flags.DEFINE_integer("popular_min_pop", 138, "minimum popularity to be"
 
 def main(_):
   """generate probe 2 data from movielens tags."""
-  logging.info("generating probe_1.tsv")
+  logging.info("generating probe_2.tsv")
 
   if FLAGS.random_seed != -1:
     random.seed(FLAGS.random_seed)
@@ -64,7 +64,7 @@ def main(_):
   probes = []
   tag_data = {}
   # unique_tags = set()
-  with tf.io.gfile.GFile(constants.ML_TAGS_V1_TSV_PATH["train"], "r") as f:
+  with tf.io.gfile.GFile(constants.ML_TAGS_TSV_PATH["full_train"], "r") as f:
     for line in tqdm.tqdm(f):
       movie, tags = line.replace("\n", "").split("\t")
       movie = movie.strip().lower()

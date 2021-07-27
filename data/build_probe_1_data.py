@@ -144,13 +144,14 @@ def main(_):
       sequence_str = sequence_str.replace("\t", "")
       return [x.strip() for x in sequence_str.split("@") if x.strip()]
 
-    with tf.io.gfile.GFile(constants.ML_SEQ_TSV_PATH["train"], "r") as f:
+    with tf.io.gfile.GFile(constants.ML_SEQ_TSV_PATH["full_train"], "r") as f:
       sequence_list = list(f)
       sequences_data = []
       for sequence_str in tqdm(sequence_list):
         sequences_data.append(parse_sequence(sequence_str))
 
-    with tf.io.gfile.GFile(constants.ML_SEQ_TSV_PATH["validation"], "r") as f:
+    with tf.io.gfile.GFile(constants.ML_SEQ_TSV_PATH["full_validation"],
+                           "r") as f:
       sequence_list = list(f)
       for sequence_str in tqdm(sequence_list):
         sequences_data.append(parse_sequence(sequence_str))

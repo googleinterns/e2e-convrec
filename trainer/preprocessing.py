@@ -110,7 +110,6 @@ def dataset_fn_wrapper(dataset):
       "ml_sequences": constants.ML_SEQ_TSV_PATH,
       "ml_tags_normal": constants.ML_TAGS_TSV_PATH,
       "ml_tags_reversed": constants.ML_TAGS_TSV_PATH,
-      "ml_tags_masked": constants.ML_TAGS_MASKED_TSV_PATH,
       "ml_reviews": constants.ML_REVIEWS_TSV_PATH,
       "probe_1": constants.PROBE_1_TSV_PATH,
       "probe_1_sequences": constants.PROBE_1_TSV_PATH,

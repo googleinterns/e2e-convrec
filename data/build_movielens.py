@@ -12,18 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Script for building the movielens tags/sequences from unformatted dataset"""
-import os
-import json
+import collections
 import functools
 import glob
-import collections
-import numpy as np
+import json
+import os
+import random
+
 from absl import app, logging, flags
+import numpy as np
 import pandas as pd
+from sklearn.model_selection import train_test_split
 import tensorflow.compat.v1 as tf
 import tqdm
-from sklearn.model_selection import train_test_split
-import random
+from trainer import constants
 
 
 flags.DEFINE_string("movielens_dir", "./data/movielens", \
@@ -42,13 +44,16 @@ flags.DEFINE_float("tags_test_size", .2, \
 flags.DEFINE_float("mask_rate", .15, "percent of ml_tag to mask")
 flags.DEFINE_bool("balance", True, \
   "balance sequences data on movie frequency")
-flags.DEFINE_integer("random_seed", 1, "seed for random dataset spliting." 
+flags.DEFINE_float("balance_cutoff", 1, "value for t for subsampling where"
+                   + "examples are dropped with p=sqrt(t/frequence(x))")
+flags.DEFINE_integer("random_seed", 1, "seed for random dataset spliting."
                      + "Choose -1 for a random seed")
 FLAGS = flags.FLAGS
 
 def main(_):
-  """Builds the movielens datasets and saves tsvs in output_dir"""
-  if FLAGS.random_seed != -1: 
+  """Builds the movielens datasets and saves tsvs in output_dir."""
+
+  if FLAGS.random_seed != -1:
     random.seed(FLAGS.random_seed)
 
   # Define filepaths
@@ -83,51 +88,67 @@ def main(_):
                          tqdm.tqdm(user_seqs_ids)))
 
     def format_sequence(arr):
-      """map a list of movie names to a tab-separated string
-      example:
+      """Format a single movie list into a set of training examples.
+
+      Args:
+        arr: athe array of 10 movies in a single user sequence
+
+      Returns:
+        a list of strings containing formatted sequence examples
       """
+      random.shu
+
       result = []
       random.shuffle(arr)
       for i in range(1, len(arr)):
         target = arr[i]
-        # related = arr[:i] + arr[i+1:]
-        # input_length = random.randint(1, min(5, len(related)))
-        # inputs = random.sample(related, k=input_length)
         example = "@ %s @" % " @ ".join(arr[:i]) + "\t" + target
         result.append(example)
 
       return result
-    
+
     def balance_data(sequences, t=1):
+      """Balance data using subsampling.
+
+      Args:
+        sequences: a list of strings containing the formatted sequence examples
+        t: the parameter to be used as a cutoff value. examples will be dropped
+          with the probability sqrt(t/f(x)) where f(x) is the frequency of the
+          target
+
+      Returns:
+        a list of strings containing formatted sequence examples
+      """
       random.shuffle(sequences)
       frequencies = collections.defaultdict(int)
 
       for sequence in sequences:
         target = sequence.split("\t")[1]
         frequencies[target] += 1
-      
+
       balanced_sequences = []
       for sequence in sequences:
         target = sequence.split("\t")[1]
         if random.random() > 1 - np.sqrt(t / frequencies[target]):
           balanced_sequences.append(sequence)
 
-      balanced_frequencies = collections.defaultdict(int)
-      for sequence in balanced_sequences:
-        target = sequence.split("\t")[1]
-        balanced_frequencies[target] += 1
-      
-      freqs_array = list(frequencies.values())
-      bal_freq_array = list(balanced_frequencies.values())
-      print(f"lengths {len(sequences)},  {len(balanced_sequences)}")
-      print(f"mean {np.mean(freqs_array)},  {np.mean(bal_freq_array)}")
-      print(f"median {np.median(freqs_array)},  {np.median(bal_freq_array)}")
-      print(f"std {np.std(freqs_array)},  {np.std(bal_freq_array)}")
-
       return balanced_sequences
 
 
-    # seqs_formatted = list(flat_map(format_sequence, tqdm.tqdm(user_seqs)))\
+    # save a version of data with the full sequences of 10 for probes
+    full_seqs = []
+    for arr in tqdm.tqdm(user_seqs):
+      example = "@ %s @" % " @ ".join(arr[:-1]) + "\t" + arr[-1]
+      full_seqs.append(example)
+    split_data = train_test_split(full_seqs,
+                                  test_size=FLAGS.seqs_test_size,
+                                  random_state=FLAGS.random_seed,
+                                  shuffle=True)
+    full_seqs_train, full_seqs_test = split_data
+    write_tsv(tqdm.tqdm(full_seqs_train), constants.ML_SEQ_TSV_PATH["full_train"])
+    write_tsv(tqdm.tqdm(full_seqs_test),
+              constants.ML_SEQ_TSV_PATH["full_validation"])
+
     seqs_formatted = []
     for arr in tqdm.tqdm(user_seqs):
       random.shuffle(arr)
@@ -135,20 +156,19 @@ def main(_):
         target = arr[i]
         example = "@ %s @" % " @ ".join(arr[:i]) + "\t" + target
         seqs_formatted.append(example)
-    
+
 
     if FLAGS.balance:
-      seqs_formatted = balance_data(seqs_formatted, t=0.5)
+      seqs_formatted = balance_data(seqs_formatted, t=FLAGS.balance_cutoff)
     seqs_train, seqs_test = train_test_split(seqs_formatted,
-                                            test_size=FLAGS.seqs_test_size,
-                                             random_state=1, shuffle=True)
+                                             test_size=FLAGS.seqs_test_size,
+                                             random_state=FLAGS.random_seed,
+                                             shuffle=True)
 
     # write tsvs to bucket
     logging.info("Writing TSVs")
-    write_tsv(tqdm.tqdm(seqs_train), os.path.join(FLAGS.output_dir, "balanced_sequences",
-                                                  "ml-sequences-train-sub-t=5e-1.tsv"))
-    write_tsv(tqdm.tqdm(seqs_test), os.path.join(FLAGS.output_dir, "balanced_sequences",
-                                                 "ml-sequences-validation-sub-t=5e-1.tsv"))
+    write_tsv(tqdm.tqdm(seqs_train), constants.ML_SEQ_TSV_PATH["train"])
+    write_tsv(tqdm.tqdm(seqs_test), constants.ML_SEQ_TSV_PATH["validation"])
 
   if FLAGS.task in ["ml_tags", "all"]:
     # Load and decode the genome scores
@@ -182,40 +202,47 @@ def main(_):
         if sublist != []:
           result.append(", ".join(sublist) + "\t" + movie)
       return result
-    
 
+    # save the assiciation of movie -> full tags list for use in probes
+    full_tags = [f"{movie}\t{', '.join(tags)}"
+                 for movie, tags in tags_dict.items()]
+
+    full_tags_train, full_tags_test = train_test_split(full_tags,
+                                             test_size=FLAGS.tags_test_size,
+                                             random_state=FLAGS.random_seed,
+                                             shuffle=True)
+    write_tsv(full_tags_train, constants.ML_TAGS_TSV_PATH["full_train"])
+    write_tsv(full_tags_test, constants.ML_TAGS_TSV_PATH["full_validation"])
+
+    # generate shorter training examples
     tags_formatted = list(flat_map(format_tags, tqdm.tqdm(tags_dict.items())))
 
-    if FLAGS.mask:
-      tags_formatted = list(flat_map(mask_multple, tqdm.tqdm(tags_dict.items())))
-    tags_train, tags_test = train_test_split(tags_formatted, 
+    tags_train, tags_test = train_test_split(tags_formatted,
                                              test_size=FLAGS.tags_test_size,
-                                             random_state=1)
+                                             random_state=FLAGS.random_seed,
+                                             shuffle=True)
 
-    # Write ml_tags TSVs
-    modifier = ""
-    if FLAGS.mask:
-      modifier = "-masked-" + str(FLAGS.sample_rate)
-    write_tsv(tags_train, os.path.join(FLAGS.output_dir,
-                                       "ml-tags-train%s.tsv" % modifier))
-    write_tsv(tags_test, os.path.join(FLAGS.output_dir,
-                                      "ml-tags-validation%s.tsv" % modifier))
+    write_tsv(tags_train, constants.ML_TAGS_TSV_PATH["train"])
+    write_tsv(tags_test, constants.ML_TAGS_TSV_PATH["validation"])
 
 def flat_map(func, arr):
   """Maps a funciton then flattens using functools.reduce."""
   return functools.reduce(lambda a, b: a + b, map(func, arr))
 
 def mask_multple(ex):
-  """returns a list of multiple masked example created from one example"""
+  """Returns a list of multiple masked example created from one example."""
   result = []
   for _ in range(FLAGS.sample_rate):
     result.append(mask_text(ex))
   return result
 
 def mask_text(ex):
-  """masks using the strategy described in the t5 paper section 3.1.4
+  """Masks text based on t5 strategy.
+
+  Uses the strategy described in the t5 paper section 3.1.4
   (https://arxiv.org/abs/1910.10683) 15% of tokens are replaced with sentinel
-  mask tokens"""
+  mask tokens
+  """
   movie, tags = ex
   tokens = np.append(movie, tags.split(", "))
   indecies = np.random.choice(len(tokens), int(np.ceil(len(tokens)*FLAGS.mask_rate)))
@@ -230,18 +257,18 @@ def mask_text(ex):
   return "\t".join([", ".join(tokens), ", ".join(targets)])
 
 def write_tsv(arr, filepath):
-  """writes an array to a tsv"""
+  """Writes an array to a tsv."""
   with tf.io.gfile.GFile(filepath, 'w') as f:
     for line in arr:
       f.write(line + "\n")
 
 def parse_user_seq(line):
-  """parses a sequence of ids from a line of the ml_user_sequences dataset"""
+  """Parses a sequence of ids from a line of the ml_user_sequences dataset."""
   sequence_string = line.strip('()').split(',', 1)[1]
   return json.loads(sequence_string)
 
 def flip_titles(title_string):
-  """flips movie titles of form "Title, The (2020)" to "The Title (2020)".
+  """Flips movie titles of form "Title, The (2020)" to "The Title (2020)".
 
   Args:
     title_string: a string representing a group of titles. For example:

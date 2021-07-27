@@ -128,7 +128,7 @@ def main(_):
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy/recall as our evaluation metric.
-        metric_fns=[t5.evaluation.metrics.accuracy, metrics.sklearn_recall])
+        metric_fns=[t5.evaluation.metrics.accuracy])
 
   # set up the ml-tags task (training on movielens tags and genres)
   ds_version = "ml_tags_" + FLAGS.tags_version
@@ -145,7 +145,7 @@ def main(_):
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy/recall and bleu as our evaluation metrics.
-        metric_fns=[metrics.t2t_bleu, metrics.sklearn_recall])
+        metric_fns=[t5.evaluation.metrics.accuracy])
   
   # set up the ml-reviews task (training on movielens movies with imdb reviews)
   if FLAGS.task in ["ml_reviews", "ml_all", "rd_reviews", "combined"]:
