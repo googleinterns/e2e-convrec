@@ -32,7 +32,7 @@ flags.DEFINE_integer("steps", 6000, "Finetuning training steps.")
 flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
                   "model size")
 flags.DEFINE_string("name", "default", "name/description of model  version")
-flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all", "export",
+flags.DEFINE_enum("mode", "train", ["train", "evaluate", "all", "export",
                                   "probe_1", "probe_1_sequences", "probe_2",
                                   "probe_3", "probe_4"],
                   "run modes: train, evaluate, export, or all. "
