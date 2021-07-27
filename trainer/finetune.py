@@ -39,8 +39,9 @@ flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all", "export",
                   + "probe modes: probe_1/2/3/4 to generate log-likelihood"
                   + " scores for probes")
 flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations",
-                                                 "ml_sequences", "ml_tags", "ml_reviews",
-                                                 "ml_all", "rd_tags", "rd_reviews",
+                                                 "ml_sequences", "ml_tags",
+                                                 "ml_reviews", "ml_all",
+                                                 "rd_tags", "rd_reviews",
                                                  "rd_sequences", "combined"],
                   ("data tasks: rd_recommendations, ml_tags, ml_sequences, ",
                    "ml_all (seqs + tags), rd_tags (redial + ml tags), ",
@@ -146,7 +147,7 @@ def main(_):
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy/recall and bleu as our evaluation metrics.
         metric_fns=[t5.evaluation.metrics.accuracy])
-  
+
   # set up the ml-reviews task (training on movielens movies with imdb reviews)
   if FLAGS.task in ["ml_reviews", "ml_all", "rd_reviews", "combined"]:
     t5.data.TaskRegistry.add(
