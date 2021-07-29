@@ -95,5 +95,31 @@ class TestBuildProbes(unittest.TestCase):
     self.assertTrue(np.allclose(np.exp(pmi2), np.exp(expected_pmi2)),
                     "pmi2 calculation incorrect")
 
+  def test_get_related_movies(self):
+    sequences = [
+        ["a", "b", "c"],
+        ["b", "c", "d"],
+        ["c"]
+    ]
+    movie_ids = build_probe_1_data.create_movie_ids(sequences)
+    co = build_probe_1_data.create_cooccurrence(sequences, movie_ids)
+    pmi2 = build_probe_1_data.create_pmi(co, movie_ids)
+    all_movies = movie_ids["all_movies"]
+    movie_ids["id_to_movie"] = dict(zip([str(x) for x in
+                                         range(len(all_movies))], all_movies))
+    filtered_set = set(movie_ids["all_movies"])
+
+    expected_related = {
+        "a": ["b", "c", "d"],
+        "b": ["c", "d", "a"],
+        "c": ["b", "d", "a"],
+        "d": ["b", "c", "a"]
+    }
+
+    for movie, ex_related in expected_related.items():
+      related = build_probe_1_data.get_related_movies(movie, movie_ids, pmi2,
+                                                      filtered_set, k=3)
+      self.assertEqual(", ".join(ex_related), ", ".join(related))
+
 if __name__ == "__main__":
   unittest.main()

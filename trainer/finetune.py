@@ -50,6 +50,7 @@ flags.DEFINE_integer("ckpt_to_export", -1, ("which model ckpt to export. Enter",
                                             "a step number or -1 for latest"))
 flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
                   "version of the tags dataset: normal, reversed, or masked")
+flags.DEFINE_integer("eval_start", 999900, "step at which to start eval")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
@@ -239,14 +240,14 @@ def main(_):
     model.batch_size = train_batch_size * 8
     model.eval(
         mixture_or_task_name=FLAGS.task,
-        checkpoint_steps=list(range(999900, 999901+FLAGS.steps, 2000)),
+        checkpoint_steps=list(range(FLAGS.eval_start, FLAGS.eval_start + 1 + FLAGS.steps, 2000)),
         compute_sequence_length=False
     )
 
   if "probe" in FLAGS.mode:
     model.batch_size = train_batch_size * 8
 
-    for steps in range(999900, 999901+FLAGS.steps, 2000):
+    for steps in range(FLAGS.eval_start, FLAGS.eval_start + 1 + FLAGS.steps, 2000):
       model.eval(
           mixture_or_task_name=FLAGS.mode,
           checkpoint_steps=steps,
