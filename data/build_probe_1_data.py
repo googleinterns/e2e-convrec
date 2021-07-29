@@ -35,10 +35,9 @@ flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose"
 flags.DEFINE_integer("probe_min_pop", 30, "minimum poularity to be in probe")
 flags.DEFINE_integer("popular_min_pop", 138, "minimum popularity to be"
                      + " considered a popular movie")
-flags.DEFINE_enum("format", "normal", ["normal", "percentile", "flipped"],
-                  "specify the probe"
-                  + " format: normal for movie a -> related/random movie b, "
-                  + "flipped for related/random movie b -> movie a")
+flags.DEFINE_enum("format", "normal", ["normal", "sequences", "percentile",
+                                       "unrelated", "flipped"],
+                  "specify the probe format")
 
 
 def create_pmi(co_matrix, movie_ids):
@@ -286,18 +285,23 @@ def main(_):
         random_list = random.sample(popular_movies, k=10)
 
       for related, rand in zip(related_list, random_list):
-        if FLAGS.format != "flipped":
-          prompt = f"[User] Can you recommend me a movie like @ {movie} @"
-          probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
-          probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")
-          probe_1_path = constants.PROBE_1_TSV_PATH["validation"]
+        if FLAGS.format == "sequences":
+          probes.append(f"@ {movie} @\t{related}")
+          probes.append(f"@ {movie} @\t{rand}")
+          path, extension = constants.PROBE_1_TSV_PATH["validation"].split(".")
+          probe_1_path = path + "_sequences" + "." + extension
         elif FLAGS.format == "flipped":
           question = "[User] Can you recommend me a movie like"
           response = f"Sure, have you seen @ {movie} @?"
           probes.append(f"{question} @ {related} @\t{response}")
           probes.append(f"{question} @ {rand} @\t{response}")
           path, extension = constants.PROBE_1_TSV_PATH["validation"].split(".")
-          probe_1_path = path + "-flipped" + extension
+          probe_1_path = path + "_flipped" + "." + extension
+        else:
+          prompt = f"[User] Can you recommend me a movie like @ {movie} @"
+          probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
+          probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")
+          probe_1_path = constants.PROBE_1_TSV_PATH["validation"]
 
     logging.info("%d pairs generated", len(probes))
     with tf.io.gfile.GFile(probe_1_path, "w") as f:
