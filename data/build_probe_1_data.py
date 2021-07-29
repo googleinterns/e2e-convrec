@@ -35,13 +35,6 @@ flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose"
 flags.DEFINE_integer("probe_min_pop", 30, "minimum popularity to be in probe")
 flags.DEFINE_integer("popular_min_pop", 138, "minimum popularity to be"
                      + " considered a popular movie")
-flags.DEFINE_enum("format", "normal", ["normal", "percentile", "unrelated",
-                                       "flipped"], "specify the probe"
-                  + " format: normal for movie a -> related/random movie b, "
-                  + "flipped for related/random movie b -> movie a, percentile"
-                  + " for movies sampled from the same percentile of "
-                  + "popularity, and unrelated for negatives sampled from the"
-                  + " top 25 percent of unrelated movies.")
 
 
 def create_pmi(co_matrix, movie_ids):
@@ -241,77 +234,18 @@ def main(_):
                  len(filtered_movies), FLAGS.probe_min_pop)
 
     filtered_set = set(filtered_movies)
-
-    def get_unrelated_movies(movie, k=5):
-      """Sample k movies from the bottom 25% of movies scored by pmi.
-
-      The results are filtered so that the related movies are above
-      FLAGS.probe_min_pop popularity.
-
-      Args:
-        movie: a string representing the title of the query movie
-        k: an int representing the number of unrelated movies to retrieve
-
-      Returns:
-        a list of strings: the titles of the unrelated movies
-      """
-      movie_id = movie_ids["movie_to_id"][movie]
-      row = pmi_matrix[movie_id]
-      related_ids = list(np.argsort(row))
-      related_ids.remove(movie_id)
-      # convert to strings and ignore the 1st most related movie (itself)
-      movie_titles = [movie_ids["id_to_movie"][str(x)] for x in related_ids]
-
-      # filter out movies with popularity < FLAGS.probe_min_pop
-      movie_titles = [x for x in movie_titles if x in filtered_set]
-      movie_titles = movie_titles[:len(movie_titles) // 4]
-      return random.sample(movie_titles, k)
-
-    if FLAGS.format == "percentile":
-      percentiles = {}
-      percentile_lists = collections.defaultdict(list)
-      for movie in tqdm(filtered_movies):
-        pop = movie_ids["popularity"][movie]
-        less_than = [x for x in movie_ids["all_movies"]
-                     if movie_ids["popularity"][x] < pop]
-        percentile = round(float(len(less_than))
-                           / len(movie_ids["all_movies"]), 2)
-        percentiles[movie] = percentile
-        percentile_lists[percentile].append(movie)
     probes = []
 
     for movie in tqdm(filtered_movies):
       related_list = get_related_movies(movie, movie_ids, pmi_matrix,
                                         filtered_set, k=10)
-
-      if FLAGS.format == "percentile":
-        random_list = []
-
-        for rel in related_list:
-          perc_list = percentile_lists[percentiles[rel]].copy()
-          if rel in perc_list:
-            perc_list.remove(rel)
-          if movie in perc_list:
-            perc_list.remove(movie)
-          random_list.append(random.choice(perc_list))
-      elif FLAGS.format == "unrelated":
-        random_list = get_unrelated_movies(movie, k=10)
-      else:
-        random_list = random.sample(popular_movies, k=10)
+      random_list = random.sample(popular_movies, k=10)
 
       for related, rand in zip(related_list, random_list):
-        if FLAGS.format != "flipped":
-          prompt = f"[User] Can you recommend me a movie like @ {movie} @"
-          probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
-          probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")
-          probe_1_path = constants.PROBE_1_TSV_PATH["validation"]
-        elif FLAGS.format == "flipped":
-          question = "[User] Can you recommend me a movie like"
-          response = f"Sure, have you seen @ {movie} @?"
-          probes.append(f"{question} @ {related} @\t{response}")
-          probes.append(f"{question} @ {rand} @\t{response}")
-          path, extension = constants.PROBE_1_TSV_PATH["validation"].split(".")
-          probe_1_path = path + "-flipped" + extension
+        prompt = f"[User] Can you recommend me a movie like @ {movie} @"
+        probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
+        probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")
+        probe_1_path = constants.PROBE_1_TSV_PATH["validation"]
 
     logging.info("%d pairs generated", len(probes))
     with tf.io.gfile.GFile(probe_1_path, "w") as f:
