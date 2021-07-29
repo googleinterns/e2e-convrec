@@ -42,9 +42,9 @@ flags.DEFINE_float("seqs_test_size", .2, \
 flags.DEFINE_float("tags_test_size", .2, \
   "test split size for the tags dataset")
 flags.DEFINE_float("mask_rate", .15, "percent of ml_tag to mask")
-flags.DEFINE_bool("balance", True, \
-  "balance sequences data on movie frequency")
-flags.DEFINE_float("balance_cutoff", 1, "value for t for subsampling where"
+flags.DEFINE_bool("downsample_popular", True, \
+  "downsample popular sequences data on movie frequency")
+flags.DEFINE_float("downsample_cutoff", 1, "value for t for subsampling where"
                    + "examples are dropped with p=sqrt(t/frequence(x))")
 flags.DEFINE_integer("random_seed", 1, "seed for random dataset spliting."
                      + "Choose -1 for a random seed")
@@ -87,28 +87,8 @@ def main(_):
     user_seqs = list(map(lambda x: [movie_decoder[movie_id] for movie_id in x],
                          tqdm.tqdm(user_seqs_ids)))
 
-    def format_sequence(arr):
-      """Format a single movie list into a set of training examples.
-
-      Args:
-        arr: athe array of 10 movies in a single user sequence
-
-      Returns:
-        a list of strings containing formatted sequence examples
-      """
-      random.shu
-
-      result = []
-      random.shuffle(arr)
-      for i in range(1, len(arr)):
-        target = arr[i]
-        example = "@ %s @" % " @ ".join(arr[:i]) + "\t" + target
-        result.append(example)
-
-      return result
-
-    def balance_data(sequences, t=1):
-      """Balance data using subsampling.
+    def downsample_data(sequences, t=1):
+      """Downsample data using based on target frequency.
 
       Args:
         sequences: a list of strings containing the formatted sequence examples
@@ -126,13 +106,13 @@ def main(_):
         target = sequence.split("\t")[1]
         frequencies[target] += 1
 
-      balanced_sequences = []
+      downsampled_sequences = []
       for sequence in sequences:
         target = sequence.split("\t")[1]
         if random.random() > 1 - np.sqrt(t / frequencies[target]):
-          balanced_sequences.append(sequence)
+          downsampled_sequences.append(sequence)
 
-      return balanced_sequences
+      return downsampled_sequences
 
 
     # save a version of data with the full sequences of 10 for probes
@@ -158,8 +138,9 @@ def main(_):
         seqs_formatted.append(example)
 
 
-    if FLAGS.balance:
-      seqs_formatted = balance_data(seqs_formatted, t=FLAGS.balance_cutoff)
+    if FLAGS.downsample_popular:
+      seqs_formatted = downsample_data(seqs_formatted,
+                                       t=FLAGS.downsample_cutoff)
     seqs_train, seqs_test = train_test_split(seqs_formatted,
                                              test_size=FLAGS.seqs_test_size,
                                              random_state=FLAGS.random_seed,
@@ -188,6 +169,17 @@ def main(_):
       tags_dict[movie].extend(genre_decoder[movie].split("|"))
 
     def format_tags(ex, p=.33):
+      """Format tag data, sampling smaller sequences from the tag associations.
+
+      Each subsequent tag in the sequence has a probability of p of being added
+      to the current example or starting a new example.
+
+      Args:
+        ex: a (movie, tag_list) pair
+
+      Returns:
+        a list of strings containing formatted tag examples
+      """
       movie, tags = ex
       tags = list(set([x.lower() for x in tags]))
       result = []
@@ -203,7 +195,7 @@ def main(_):
           result.append(", ".join(sublist) + "\t" + movie)
       return result
 
-    # save the assiciation of movie -> full tags list for use in probes
+    # save the association of movie -> full tags list for use in probes
     full_tags = [f"{movie}\t{', '.join(tags)}"
                  for movie, tags in tags_dict.items()]
 
