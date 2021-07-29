@@ -32,13 +32,16 @@ flags.DEFINE_enum("mode", "auto", ["ids", "probes", "all", "auto"],
                   + "pmi matricies")
 flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose"
                      + "-1 for a randomly picked seed")
-flags.DEFINE_integer("probe_min_pop", 30, "minimum poularity to be in probe")
+flags.DEFINE_integer("probe_min_pop", 30, "minimum popularity to be in probe")
 flags.DEFINE_integer("popular_min_pop", 138, "minimum popularity to be"
                      + " considered a popular movie")
-flags.DEFINE_enum("format", "normal", ["normal", "percentile", "flipped"],
-                  "specify the probe"
+flags.DEFINE_enum("format", "normal", ["normal", "percentile", "unrelated",
+                                       "flipped"], "specify the probe"
                   + " format: normal for movie a -> related/random movie b, "
-                  + "flipped for related/random movie b -> movie a")
+                  + "flipped for related/random movie b -> movie a, percentile"
+                  + " for movies sampled from the same percentile of "
+                  + "popularity, and unrelated for negatives sampled from the"
+                  + " top 25 percent of unrelated movies.")
 
 
 def create_pmi(co_matrix, movie_ids):
@@ -132,6 +135,34 @@ def create_movie_ids(sequences_data):
   return movie_ids
 
 
+def get_related_movies(movie, movie_ids, pmi_matrix, filtered_set, k=5):
+  """Get the k closest related movies as sorted by pmi.
+
+  The results are filtered so that the related movies are above
+  FLAGS.probe_min_pop popularity.
+
+  Args:
+    movie: a string representing the title of the query movie
+    movie_ids: dictionary containing the movie-id mappings
+    pmi_matrix: matrix containing the pmi values
+    filtered_set: set of movies to filter with
+    k: an int representing the number of related movies to retrieve
+
+  Returns:
+    a list of strings: the titles of the k most related movies
+  """
+  movie_id = movie_ids["movie_to_id"][movie]
+  row = pmi_matrix[movie_id]
+  related_ids = list(np.argsort(row)[::-1])
+  # convert to strings and ignore the 1st most related movie (itself)
+  related_ids.remove(movie_id)
+  movie_titles = [movie_ids["id_to_movie"][str(x)] for x in related_ids]
+
+  # filter out movies with popularity < FLAGS.probe_min_pop
+  movie_titles = [x for x in movie_titles if x in filtered_set]
+  return movie_titles[:k]
+
+
 def main(_):
   """Generate probe 1 data from movielens sequences."""
   if (not tf.io.gfile.exists(constants.MATRIX_PATHS["movie_ids"]) or
@@ -211,36 +242,18 @@ def main(_):
 
     filtered_set = set(filtered_movies)
 
-    def get_related_movies(movie, k=5):
-      """Get the k closest related movies as sorted by pmi.
-
-      Args:
-        movie: a string representing the title of the query movie
-        k: an int representing the number of related movies to retrieve
-
-      Returns:
-        a list of strings: the titles of the k most related movies
-      """
-      movie_id = movie_ids["movie_to_id"][movie]
-      row = pmi_matrix[movie_id]
-      related_ids = list(np.argsort(row)[::-1])
-      # convert to strings and ignore the 1st most related movie (itself)
-      related_ids.remove(movie_id)
-      movie_titles = [movie_ids["id_to_movie"][str(x)] for x in related_ids]
-
-      # filter out movies with popularity < 10
-      movie_titles = [x for x in movie_titles if x in filtered_set]
-      return movie_titles[:k]
-
     def get_unrelated_movies(movie, k=5):
-      """Get the k closest related movies as sorted by pmi.
+      """Sample k movies from the bottom 25% of movies scored by pmi.
+
+      The results are filtered so that the related movies are above
+      FLAGS.probe_min_pop popularity.
 
       Args:
         movie: a string representing the title of the query movie
-        k: an int representing the number of related movies to retrieve
+        k: an int representing the number of unrelated movies to retrieve
 
       Returns:
-        a list of strings: the titles of the k most related movies
+        a list of strings: the titles of the unrelated movies
       """
       movie_id = movie_ids["movie_to_id"][movie]
       row = pmi_matrix[movie_id]
@@ -249,7 +262,7 @@ def main(_):
       # convert to strings and ignore the 1st most related movie (itself)
       movie_titles = [movie_ids["id_to_movie"][str(x)] for x in related_ids]
 
-      # filter out movies with popularity < 10
+      # filter out movies with popularity < FLAGS.probe_min_pop
       movie_titles = [x for x in movie_titles if x in filtered_set]
       movie_titles = movie_titles[:len(movie_titles) // 4]
       return random.sample(movie_titles, k)
@@ -268,7 +281,8 @@ def main(_):
     probes = []
 
     for movie in tqdm(filtered_movies):
-      related_list = get_related_movies(movie, k=10)
+      related_list = get_related_movies(movie, movie_ids, pmi_matrix,
+                                        filtered_set, k=10)
 
       if FLAGS.format == "percentile":
         random_list = []

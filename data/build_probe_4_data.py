@@ -19,12 +19,17 @@ import random
 from absl import app
 from absl import flags
 from absl import logging
+from data import build_probe_1_data
 import numpy as np
 import tensorflow.compat.v1 as tf
 from tqdm import tqdm
 from trainer import constants
 
 FLAGS = flags.FLAGS
+
+for flag_name in ["random_seed", "probe_min_pop", "popular_min_pop"]:
+  delattr(FLAGS, flag_name)
+
 flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose"
                      + "-1 for a randomly picked seed")
 flags.DEFINE_integer("probe_min_pop", 30, "minimum poularity to be in probe")
@@ -67,37 +72,17 @@ def main(_):
   movie_ids["all_movies"] = [x.lower() for x in movie_ids["all_movies"]]
   ids = list(range(len(movie_ids["all_movies"])))
   movie_ids["movie_to_id"] = dict(zip(movie_ids["all_movies"], ids))
-  movie_ids["id_to_movie"] = dict(zip(ids, movie_ids["all_movies"]))
+  str_ids = [str(x) for x in ids]
+  movie_ids["id_to_movie"] = dict(zip(str_ids, movie_ids["all_movies"]))
 
   def intersection(list1, list2):
     return [x for x in list1 if x in list2]
 
   filtered_set = set(filtered_movies)
-  def get_related_movies(movie, k=5):
-    """Get the k closest related movies as sorted by pmi.
-
-    Args:
-      movie: a string representing the title of the query movie
-      k: an int representing the number of related movies to retrieve
-
-    Returns:
-      a list of strings: the titles of the k most related movies
-    """
-    movie_id = movie_ids["movie_to_id"][movie]
-    row = pmi_matrix[movie_id]
-    related_ids = list(np.argsort(row)[::-1])
-    # convert to strings and ignore the 1st most related movie (itself)
-    related_ids.remove(movie_id)
-    movie_titles = [movie_ids["id_to_movie"][x] for x in related_ids]
-
-    # filter out movies with popularity < 10
-    movie_titles = [x for x in movie_titles if x in filtered_set]
-    return movie_titles[:k]
-
   probes = []
   tag_data = {}
 
-  with tf.io.gfile.GFile(constants.ML_TAGS_V1_TSV_PATH["train"], "r") as f:
+  with tf.io.gfile.GFile(constants.ML_TAGS_TSV_PATH["full_train"], "r") as f:
     for line in tqdm(f):
       movie, tags = line.replace("\n", "").split("\t")
       movie = movie.strip().lower()
@@ -108,7 +93,9 @@ def main(_):
   # filter out discrepencies between sequences and tag data
   popular_movies = [x for x in popular_movies if x in tag_data]
   for movie, tags in tag_data.items():
-    related_movies = get_related_movies(movie, k=10)
+    related_movies = build_probe_1_data.get_related_movies(movie, movie_ids,
+                                                           pmi_matrix,
+                                                           filtered_set, k=10)
     for related in related_movies:
       if related in tag_data:
         common_tags = intersection(tags, tag_data[related])

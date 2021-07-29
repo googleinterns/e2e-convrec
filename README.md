@@ -88,7 +88,7 @@ module located in trainer.fintune:
 
 + `train`: train a model
 
-+ `evaluate`: evaluate model using standard metrics
++ `evaluate`: evaluate model using standard metrics: bleu score and recall
 
 + `export`: export a checkpoint
 
@@ -102,7 +102,7 @@ module located in trainer.fintune:
 
 + `probe_4`: run probe 4
 
-`--task`: determines which training tasks are run. There are three tasks:
+`--task`: determines which training tasks are run. There are four tasks:
 
 + `rd_recommendations`: dialogue responses from the redial dataset
 

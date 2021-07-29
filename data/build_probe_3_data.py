@@ -49,6 +49,8 @@ spv = SentencePieceVocabulary(t5.data.DEFAULT_SPM_PATH)
 
 def build_review_examples(review_df, movie_ids):
   r"""transforms the dataset of reviews into trainable review examples.
+  
+  Uses at most five reviews from each movie in order to balance the dataset.
 
   Args:
     review_df: a pandas dataframe containing the review data separated into
@@ -143,7 +145,7 @@ def main(_):
       sentences = sentences[:FLAGS.review_snippet_length]
     return "".join(sentences)
 
-  # flip titles to match training format and drop unescesarry data
+  # flip titles to match training format and drop unecessary data
   review_df = review_df.copy()
   review_df["relevant_doc"] = review_df["relevant_doc"
                                         ].map(build_movielens.flip_titles)
