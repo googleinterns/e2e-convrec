@@ -32,14 +32,16 @@ flags.DEFINE_integer("steps", 6000, "Finetuning training steps.")
 flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
                   "model size")
 flags.DEFINE_string("name", "default", "name/description of model  version")
-flags.DEFINE_enum("mode", "all", ["train", "evaluate", "all", "export",
-                                  "probe_1", "probe_2"],
+flags.DEFINE_enum("mode", "train", ["train", "evaluate", "all", "export",
+                                  "probe_1", "probe_1_sequences", "probe_2",
+                                  "probe_3", "probe_4"],
                   "run modes: train, evaluate, export, or all. "
-                  + "probe modes: probe_1 or probe_2 to generate log-likelihood"
+                  + "probe modes: probe_1/2/3/4 to generate log-likelihood"
                   + " scores for probes")
 flags.DEFINE_enum("task", "rd_recommendations", ["rd_recommendations",
                                                  "ml_sequences", "ml_tags",
-                                                 "ml_all", "rd_tags",
+                                                 "ml_reviews", "ml_all",
+                                                 "rd_tags", "rd_reviews",
                                                  "rd_sequences", "combined"],
                   ("data tasks: rd_recommendations, ml_tags, ml_sequences, ",
                    "ml_all (seqs + tags), rd_tags (redial + ml tags), ",
@@ -95,7 +97,7 @@ def main(_):
     json.dump(num_rd_examples, tf.io.gfile.GFile(constants.RD_COUNTS_PATH, "w"))
 
   # set up the rd_recommendations task (training on redial conversations)
-  if FLAGS.task in ["rd_recommendations", "rd_tags", "rd_sequences",
+  if FLAGS.task in ["rd_recommendations", "rd_reviews", "rd_tags", "rd_sequences",
                     "combined"]:
     t5.data.TaskRegistry.add(
         "rd_recommendations",
@@ -127,7 +129,7 @@ def main(_):
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy/recall as our evaluation metric.
-        metric_fns=[t5.evaluation.metrics.accuracy, metrics.sklearn_recall])
+        metric_fns=[t5.evaluation.metrics.accuracy])
 
   # set up the ml-tags task (training on movielens tags and genres)
   ds_version = "ml_tags_" + FLAGS.tags_version
@@ -144,28 +146,56 @@ def main(_):
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use accuracy/recall and bleu as our evaluation metrics.
-        metric_fns=[metrics.t2t_bleu, metrics.sklearn_recall])
+        metric_fns=[t5.evaluation.metrics.accuracy])
+
+  # set up the ml-reviews task (training on movielens movies with imdb reviews)
+  if FLAGS.task in ["ml_reviews", "ml_all", "rd_reviews", "combined"]:
+    t5.data.TaskRegistry.add(
+        "ml_reviews",
+        # Supply a function which returns a tf.data.Dataset.
+        dataset_fn=preprocessing.dataset_fn_wrapper("ml_reviews"),
+        splits=["train", "validation"],
+        # Supply a function which preprocesses text from the tf.data.Dataset.
+        text_preprocessor=[preprocessing.preprocessor_wrapper("ml_reviews")],
+        # Use the same vocabulary that we used for pre-training.
+        # sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
+        # Lowercase targets before computing metrics.
+        postprocess_fn=t5.data.postprocessors.lower_text,
+        # We'll use accuracy/recall and bleu as our evaluation metrics.
+        metric_fns=[metrics.t2t_bleu])
 
   if "probe" in FLAGS.mode:
-    t5.data.TaskRegistry.add(
+    if "sequences" in FLAGS.mode:
+      t5.data.TaskRegistry.add(
         FLAGS.mode,
         # Supply a function which returns a tf.data.Dataset.
         dataset_fn=preprocessing.dataset_fn_wrapper(FLAGS.mode),
         splits=["validation"],
         # Supply a function which preprocesses text from the tf.data.Dataset.
         text_preprocessor=[
-            preprocessing.preprocessor_wrapper("rd_recommendations")],
+            preprocessing.preprocessor_wrapper("ml_sequences")],
         metric_fns=[metrics.probe_pair_accuracy])
+    else:
+      t5.data.TaskRegistry.add(
+          FLAGS.mode,
+          # Supply a function which returns a tf.data.Dataset.
+          dataset_fn=preprocessing.dataset_fn_wrapper(FLAGS.mode),
+          splits=["validation"],
+          # Supply a function which preprocesses text from the tf.data.Dataset.
+          text_preprocessor=[
+              preprocessing.preprocessor_wrapper("rd_recommendations")],
+          metric_fns=[metrics.probe_pair_accuracy])
 
   task_combination = {
       "rd_tags": ["rd_recommendations", "ml_tags"],
       "rd_sequences": ["rd_recommendations", "ml_sequences"],
+      "rd_reviews": ["rd_recommendations", "ml_reviews"],
       "ml_all": ["ml_tags", "ml_sequences"],
-      "combined": ["rd_recommendations", "ml_sequences", "ml_tags"]
+      "combined": ["rd_recommendations", "ml_sequences", "ml_tags", "ml_reviews"]
 
   }.get(FLAGS.task, [])
 
-  if FLAGS.task in ["rd_sequences", "rd_tags", "combined", "ml_all"]:
+  if FLAGS.task in ["rd_sequences", "rd_tags", "rd_reviews", "combined", "ml_all"]:
     t5.data.MixtureRegistry.remove(FLAGS.task)
     t5.data.MixtureRegistry.add(
         FLAGS.task,
@@ -177,7 +207,7 @@ def main(_):
   # Limit number of checkpoints to fit within 5GB (if possible).
   model_parallelism, train_batch_size, keep_checkpoint_max = {
       "small": (1, 256, 16),
-      "base": (4, 128, 16),
+      "base": (4, 128, 32),
       "large": (8, 64, 10),
       "3B": (8, 16, 1),
       "11B": (8, 16, 1)}[FLAGS.size]

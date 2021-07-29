@@ -75,25 +75,48 @@ module located in trainer.fintune:
     --mode=all \
     --task=combined
 
-steps, size, name, and mode are user flags which default to 6000, base, default, and all. Size has to be either small, base, large, 3B, or 11B. Mode can be set to train
-(for finetuning), evaluation (for evaulating the most recnt checkpoint), or all (for both). if there is already a model at gs://e2e_central/models/$SIZE/$NAME, 
-the program will continue training from that model's most recent checkpoint.
+### Important flags:
 
-PROJECT_NAME is a unique identifier to the job instance. You can find the existing/used names in:
+`--steps`: controls the number of finetuning steps
 
+`--size`: controls the model size (`small`, `base`, `large`, `3B`, or `11B`)
+
+`PROJECT_NAME` is a unique identifier to the job instance. You can find the existing/used names in:
+ `gcloud ai-platform jobs list`
+ `--mode`: determines the run mode. There are eight options:
+ + `rd_recommendations`: dialogue responses from the redial dataset
+
++ `train`: train a model
+
++ `evaluate`: evaluate model using standard metrics: bleu score and recall
+
++ `export`: export a checkpoint
+
++ `all`: run training, evaluation, and export the last model
+
++ `probe_1`: run probe 1
+
++ `probe_2`: run probe 2
+
++ `probe_3`: run probe 3
+
++ `probe_4`: run probe 4
+
+`--task`: determines which training tasks are run. There are four tasks:
+
++ `rd_recommendations`: dialogue responses from the redial dataset
+
++ `ml_sequences`: sequences of movies from the movielens dataset
+
++ `ml_tags`: tags to movie mappings from the movielens dataset
+
++ `ml_reviews`: movie to review mappings from the movielens and IMDB datasets
+
++ Set the `--task` flag to equal any of these options:
+
+  + `rd_recommendations`, `ml_tags`, `ml_sequences`, `ml_reviews`, `ml_all` (seqs + tags + reviews), `rd_tags` (redial + tags), `rd_sequences` (redial + seqs), `rd_reviews` (redial + reviews), `combined` (all four)
     gcloud ai-platform jobs list
 
-the `--task` flag determines which training tasks are run. There are three tasks:
-
-`rd_recommendations`: dialogue responses from the redial dataset
-
-`ml_sequences`: sequences of movies from the movielens dataset
-
-`ml_tags`: (movie, tags) pairs from the movielens dataset
-
-Set the `--task` flag to equal any of these options:
-
-`rd_recommendations`, `ml_tags`, `ml_sequences`, `ml_all` (seqs + tags), `rd_tags` (redial + tags), `rd_sequences` (redial + seqs), `combined` (all three)
 
 ## Running tensorboard:
 

@@ -24,7 +24,6 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 from tqdm import tqdm
 from trainer import constants
-
 FLAGS = flags.FLAGS
 flags.DEFINE_enum("mode", "auto", ["ids", "probes", "all", "auto"],
                   "auto to build whatever's missing, ids to rebuild ids, "
@@ -33,7 +32,7 @@ flags.DEFINE_enum("mode", "auto", ["ids", "probes", "all", "auto"],
                   + "pmi matricies")
 flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose"
                      + "-1 for a randomly picked seed")
-flags.DEFINE_integer("probe_min_pop", 10, "minimum poularity to be in probe")
+flags.DEFINE_integer("probe_min_pop", 30, "minimum popularity to be in probe")
 flags.DEFINE_integer("popular_min_pop", 138, "minimum popularity to be"
                      + " considered a popular movie")
 
@@ -129,6 +128,34 @@ def create_movie_ids(sequences_data):
   return movie_ids
 
 
+def get_related_movies(movie, movie_ids, pmi_matrix, filtered_set, k=5):
+  """Get the k closest related movies as sorted by pmi.
+
+  The results are filtered so that the related movies are above
+  FLAGS.probe_min_pop popularity.
+
+  Args:
+    movie: a string representing the title of the query movie
+    movie_ids: dictionary containing the movie-id mappings
+    pmi_matrix: matrix containing the pmi values
+    filtered_set: set of movies to filter with
+    k: an int representing the number of related movies to retrieve
+
+  Returns:
+    a list of strings: the titles of the k most related movies
+  """
+  movie_id = movie_ids["movie_to_id"][movie]
+  row = pmi_matrix[movie_id]
+  related_ids = list(np.argsort(row)[::-1])
+  # convert to strings and ignore the 1st most related movie (itself)
+  related_ids.remove(movie_id)
+  movie_titles = [movie_ids["id_to_movie"][str(x)] for x in related_ids]
+
+  # filter out movies with popularity < FLAGS.probe_min_pop
+  movie_titles = [x for x in movie_titles if x in filtered_set]
+  return movie_titles[:k]
+
+
 def main(_):
   """Generate probe 1 data from movielens sequences."""
   if (not tf.io.gfile.exists(constants.MATRIX_PATHS["movie_ids"]) or
@@ -141,13 +168,14 @@ def main(_):
       sequence_str = sequence_str.replace("\t", "")
       return [x.strip() for x in sequence_str.split("@") if x.strip()]
 
-    with tf.io.gfile.GFile(constants.ML_SEQ_TSV_PATH["train"], "r") as f:
+    with tf.io.gfile.GFile(constants.ML_SEQ_TSV_PATH["full_train"], "r") as f:
       sequence_list = list(f)
       sequences_data = []
       for sequence_str in tqdm(sequence_list):
         sequences_data.append(parse_sequence(sequence_str))
 
-    with tf.io.gfile.GFile(constants.ML_SEQ_TSV_PATH["validation"], "r") as f:
+    with tf.io.gfile.GFile(constants.ML_SEQ_TSV_PATH["full_validation"],
+                           "r") as f:
       sequence_list = list(f)
       for sequence_str in tqdm(sequence_list):
         sequences_data.append(parse_sequence(sequence_str))
@@ -206,41 +234,21 @@ def main(_):
                  len(filtered_movies), FLAGS.probe_min_pop)
 
     filtered_set = set(filtered_movies)
-    
-    def get_related_movies(movie, k=5):
-      """Get the k closest related movies as sorted by pmi.
-
-      Args:
-        movie: a string representing the title of the query movie
-        k: an int representing the number of related movies to retrieve
-
-      Returns:
-        a list of strings: the titles of the k most related movies
-      """
-      movie_id = movie_ids["movie_to_id"][movie]
-      row = pmi_matrix[movie_id]
-      related_ids = list(np.argsort(row)[::-1])
-      related_ids.remove(movie_id)
-      # convert to strings and ignore the 1st most related movie (itself)
-      movie_titles = [movie_ids["id_to_movie"][str(x)] for x in related_ids]
-
-      # filter out movies with popularity < 10
-      movie_titles = [x for x in movie_titles if x in filtered_set]
-
-      return movie_titles[:k]
-
     probes = []
+
     for movie in tqdm(filtered_movies):
-      related_list = get_related_movies(movie, k=10)
+      related_list = get_related_movies(movie, movie_ids, pmi_matrix,
+                                        filtered_set, k=10)
       random_list = random.sample(popular_movies, k=10)
 
       for related, rand in zip(related_list, random_list):
         prompt = f"[User] Can you recommend me a movie like @ {movie} @"
         probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
         probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")
+        probe_1_path = constants.PROBE_1_TSV_PATH["validation"]
 
     logging.info("%d pairs generated", len(probes))
-    with tf.io.gfile.GFile(constants.PROBE_1_TSV_PATH["validation"], "w") as f:
+    with tf.io.gfile.GFile(probe_1_path, "w") as f:
       for line in probes:
         f.write(f"{line}\n")
 
