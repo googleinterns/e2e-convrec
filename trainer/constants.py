@@ -53,7 +53,7 @@ ML_REVIEWS_TSV_PATH = {
 PROBE_1_TSV_PATH = {
     "validation": os.path.join(PROBE_DIR, "probe_1.tsv")
 }
-PROBE_1_SEQ_PATH = {
+PROBE_1_SEQ_TSV_PATH = {
     "validation": os.path.join(PROBE_DIR, "probe_1_sequences.tsv")
 }
 PROBE_2_TSV_PATH = {

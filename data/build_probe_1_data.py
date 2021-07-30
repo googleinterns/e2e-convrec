@@ -35,6 +35,9 @@ flags.DEFINE_integer("random_seed", 1, "seed for random movie selection. Choose"
 flags.DEFINE_integer("probe_min_pop", 30, "minimum popularity to be in probe")
 flags.DEFINE_integer("popular_min_pop", 138, "minimum popularity to be"
                      + " considered a popular movie")
+flags.DEFINE_enum("format", "normal", ["normal", "sequences"],
+                  "specify the probe format: normal for pairs in dialogue, "
+                  + "sequences for movie only probes for sequences task")
 
 
 def create_pmi(co_matrix, movie_ids):
@@ -242,10 +245,16 @@ def main(_):
       random_list = random.sample(popular_movies, k=10)
 
       for related, rand in zip(related_list, random_list):
-        prompt = f"[User] Can you recommend me a movie like @ {movie} @"
-        probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
-        probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")
-        probe_1_path = constants.PROBE_1_TSV_PATH["validation"]
+        if FLAGS.format == "sequences":
+          probes.append(f"@ {movie} @\t{related}")
+          probes.append(f"@ {movie} @\t{rand}")
+          path, extension = constants.PROBE_1_TSV_PATH["validation"].split(".")
+          probe_1_path = path + "_sequences" + "." + extension
+        else:
+          prompt = f"[User] Can you recommend me a movie like @ {movie} @"
+          probes.append(f"{prompt}\tSure, have you seen @ {related} @?")
+          probes.append(f"{prompt}\tSure, have you seen @ {rand} @?")
+          probe_1_path = constants.PROBE_1_TSV_PATH["validation"]
 
     logging.info("%d pairs generated", len(probes))
     with tf.io.gfile.GFile(probe_1_path, "w") as f:

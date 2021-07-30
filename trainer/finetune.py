@@ -50,6 +50,7 @@ flags.DEFINE_integer("ckpt_to_export", -1, ("which model ckpt to export. Enter",
                                             "a step number or -1 for latest"))
 flags.DEFINE_enum("tags_version", "normal", ["normal", "reversed", "masked"],
                   "version of the tags dataset: normal, reversed, or masked")
+flags.DEFINE_integer("eval_start", 999900, "step at which to start eval")
 flags.DEFINE_integer("beam_size", 1, "beam size for saved model")
 flags.DEFINE_float("temperature", 1.0, "temperature for saved model")
 flags.DEFINE_float("learning_rate", .003, "learning rate for finetuning")
@@ -107,8 +108,6 @@ def main(_):
         # Supply a function which preprocesses text from the tf.data.Dataset.
         text_preprocessor=[
             preprocessing.preprocessor_wrapper("rd_recommendations")],
-        # Use the same vocabulary that we used for pre-training.
-        # sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
         # We'll use bleu, bleu no titles, and recall as our evaluation metrics.
@@ -124,11 +123,9 @@ def main(_):
         splits=["train", "validation"],
         # Supply a function which preprocesses text from the tf.data.Dataset.
         text_preprocessor=[preprocessing.preprocessor_wrapper("ml_sequences")],
-        # Use the same vocabulary that we used for pre-training.
-        # sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
-        # We'll use accuracy/recall as our evaluation metric.
+        # We'll use accuracy as our evaluation metric.
         metric_fns=[t5.evaluation.metrics.accuracy])
 
   # set up the ml-tags task (training on movielens tags and genres)
@@ -141,11 +138,9 @@ def main(_):
         splits=["train", "validation"],
         # Supply a function which preprocesses text from the tf.data.Dataset.
         text_preprocessor=[preprocessing.preprocessor_wrapper("ml_tags")],
-        # Use the same vocabulary that we used for pre-training.
-        # sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
-        # We'll use accuracy/recall and bleu as our evaluation metrics.
+        # We'll use accuracy as our evaluation metric.
         metric_fns=[t5.evaluation.metrics.accuracy])
 
   # set up the ml-reviews task (training on movielens movies with imdb reviews)
@@ -157,31 +152,25 @@ def main(_):
         splits=["train", "validation"],
         # Supply a function which preprocesses text from the tf.data.Dataset.
         text_preprocessor=[preprocessing.preprocessor_wrapper("ml_reviews")],
-        # Use the same vocabulary that we used for pre-training.
-        # sentencepiece_model_path=t5.data.DEFAULT_SPM_PATH,
         # Lowercase targets before computing metrics.
         postprocess_fn=t5.data.postprocessors.lower_text,
-        # We'll use accuracy/recall and bleu as our evaluation metrics.
+        # We'll use bleu as our evaluation metric.
         metric_fns=[metrics.t2t_bleu])
 
   if "probe" in FLAGS.mode:
     if "sequences" in FLAGS.mode:
       t5.data.TaskRegistry.add(
         FLAGS.mode,
-        # Supply a function which returns a tf.data.Dataset.
         dataset_fn=preprocessing.dataset_fn_wrapper(FLAGS.mode),
         splits=["validation"],
-        # Supply a function which preprocesses text from the tf.data.Dataset.
         text_preprocessor=[
             preprocessing.preprocessor_wrapper("ml_sequences")],
         metric_fns=[metrics.probe_pair_accuracy])
     else:
       t5.data.TaskRegistry.add(
           FLAGS.mode,
-          # Supply a function which returns a tf.data.Dataset.
           dataset_fn=preprocessing.dataset_fn_wrapper(FLAGS.mode),
           splits=["validation"],
-          # Supply a function which preprocesses text from the tf.data.Dataset.
           text_preprocessor=[
               preprocessing.preprocessor_wrapper("rd_recommendations")],
           metric_fns=[metrics.probe_pair_accuracy])
@@ -239,14 +228,14 @@ def main(_):
     model.batch_size = train_batch_size * 8
     model.eval(
         mixture_or_task_name=FLAGS.task,
-        checkpoint_steps=list(range(999900, 999901+FLAGS.steps, 2000)),
+        checkpoint_steps=list(range(FLAGS.eval_start, 999901 + FLAGS.steps, 2000)),
         compute_sequence_length=False
     )
 
   if "probe" in FLAGS.mode:
     model.batch_size = train_batch_size * 8
 
-    for steps in range(999900, 999901+FLAGS.steps, 2000):
+    for steps in range(FLAGS.eval_start, 999901 + FLAGS.steps, 2000):
       model.eval(
           mixture_or_task_name=FLAGS.mode,
           checkpoint_steps=steps,

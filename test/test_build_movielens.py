@@ -12,33 +12,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit Tests for E2E Convrec modules"""
-from data import build_movielens
+"""Unit Tests for E2E Convrec modules."""
 import unittest
+
+from data import build_movielens
+
 
 class TestBuildMovielens(unittest.TestCase):
 
-    def test_flip_titles(self):
-        test_inputs = [
-            "Green Mile, The (1999) @ Good, the Bad and the Ugly, The (Buono, il brutto, il cattivo, Il) (1966) @ Devil's Advocate, The (1997) ",
-            "King's Speech, The (2010) @ Social Network, The (2010) @ Catch Me If You Can (2002)",
-            "Brady Bunch Movie, The (1995) @ Shining, The (1980) @ Cool Hand Luke (1967)",
-            "House Bunny, The (2008)",
-            "Ten Commandments, The (1956)",
-            "Fake Movie, the (subtitle) weirdness, (0000)"
-        ]
+  def test_flip_titles(self):
+    test_inputs = [
+        "Green Mile, The (1999) @ Good, the Bad and the Ugly, The (Buono, il brut"
+        + "to, il cattivo, Il) (1966) @ Devil's Advocate, The (1997) ",
+        "King's Speech, The (2010) @ Social Network, The (2010) @ Catch Me If You"
+        + " Can (2002)",
+        "Brady Bunch Movie, The (1995) @ Shining, The (1980) @ Cool Hand Luke (19"
+        + "67)", "House Bunny, The (2008)", "Ten Commandments, The (1956)",
+        "Fake Movie, the (subtitle) weirdness, (0000)"
+    ]
 
-        test_outputs = [
-            "The Green Mile (1999) @ The Good, the Bad and the Ugly (Buono, il brutto, il cattivo, Il) (1966) @ The Devil's Advocate (1997)",
-            "The King's Speech (2010) @ The Social Network (2010) @ Catch Me If You Can (2002)",
-            "The Brady Bunch Movie (1995) @ The Shining (1980) @ Cool Hand Luke (1967)",
-            "The House Bunny (2008)",
-            "The Ten Commandments (1956)",
-            "the Fake Movie (subtitle) weirdness, (0000)"
-        ]
-        for test_input, test_output in zip(test_inputs, test_outputs):
-            print(build_movielens.flip_titles(test_input), test_output)
-            self.assertEqual(build_movielens.flip_titles(test_input), test_output, "should put title in order")
+    test_outputs = [
+        "The Green Mile (1999) @ The Good, the Bad and the Ugly (Buono, il brutto"
+        + ", il cattivo, Il) (1966) @ The Devil's Advocate (1997)",
+        "The King's Speech (2010) @ The Social Network (2010) @ Catch Me If You "
+        + "Can (2002)",
+        "The Brady Bunch Movie (1995) @ The Shining (1980) @ Cool Hand Luke "
+        + "(1967)",
+        "The House Bunny (2008)",
+        "The Ten Commandments (1956)",
+        "the Fake Movie (subtitle) weirdness, (0000)"
+    ]
+    for test_input, test_output in zip(test_inputs, test_outputs):
+      self.assertEqual(build_movielens.flip_titles(test_input), test_output,
+                       "should put title in order")
 
-if __name__ == '__main__':
-    unittest.main()
+  def test_parse_sequence(self):
+    test_sequences = [
+        "(1, [1, 2])",
+        "(2, [3, 4]",
+        "(3, []",
+        "(4, [1, 1])"
+    ]
+    expected_parsed = [
+        [1, 2],
+        [3, 4],
+        [],
+        [1, 1]
+    ]
+    for test_seq, ex_parsed in zip(test_sequences, expected_parsed):
+      self.assertEqual(build_movielens.parse_user_seq(test_seq),
+                       ex_parsed, "incorrect string -> list parsing")
+
+if __name__ == "__main__":
+  unittest.main()
