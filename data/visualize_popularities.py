@@ -28,7 +28,6 @@ from trainer import constants
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_integer("steps", 1009900, "Finetuning training steps.")
 flags.DEFINE_enum("size", "base", ["small", "base", "large", "3B", "11B"],
                   "model size")
 flags.DEFINE_string("name", "default", "name/description of model version")
@@ -95,8 +94,8 @@ def main(_):
 
   # load the probe 1 data for the given model
   inputs, targets, predictions, steps = load_probe_data(model_dir, "probe_1")
-  predictions = predictions[steps.index(FLAGS.steps)]
-  steps = steps[steps.index(FLAGS.steps)]
+  predictions = predictions[-1]
+  steps = steps[-1]
   movie_ids["popularity"] = {k.lower(): v for k, v
                              in movie_ids["popularity"].items()}
 
