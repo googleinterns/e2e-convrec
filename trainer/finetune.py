@@ -240,14 +240,14 @@ def main(_):
     model.batch_size = train_batch_size * 8
     model.eval(
         mixture_or_task_name=FLAGS.task,
-        checkpoint_steps=list(range(FLAGS.eval_start, FLAGS.eval_start + 1 + FLAGS.steps, 2000)),
+        checkpoint_steps=list(range(FLAGS.eval_start, 999901 + FLAGS.steps, 2000)),
         compute_sequence_length=False
     )
 
   if "probe" in FLAGS.mode:
     model.batch_size = train_batch_size * 8
 
-    for steps in range(FLAGS.eval_start, FLAGS.eval_start + 1 + FLAGS.steps, 2000):
+    for steps in range(FLAGS.eval_start, 999901 + FLAGS.steps, 2000):
       model.eval(
           mixture_or_task_name=FLAGS.mode,
           checkpoint_steps=steps,
