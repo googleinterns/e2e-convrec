@@ -30,7 +30,7 @@ setup(
         'tensor2tensor'
     ],
     extras_require={
-        'tensorflow': ['tensorflow==2.5.0'],
+        'tensorflow': ['tensorflow==2.6.4'],
         'tensorflow_gpu': ['tensorflow-gpu==2.2.2'],
         'tensorflow-hub': ['tensorflow-hub>=0.6.0'],
     },
