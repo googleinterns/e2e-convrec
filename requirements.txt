@@ -20,7 +20,7 @@ filelock==3.0.12
 Flask==1.1.2
 future==0.18.2
 gast==0.3.3
-gevent==20.6.2
+gevent==23.9.1
 gin-config==0.3.0
 google-api-core==1.21.0
 google-api-python-client==1.9.3
