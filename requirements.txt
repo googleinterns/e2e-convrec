@@ -31,7 +31,7 @@ google-pasta==0.2.0
 googleapis-common-protos==1.52.0
 greenlet==0.4.16
 grpcio==1.30.0
-gunicorn==20.0.4
+gunicorn==23.0.0
 gym==0.17.2
 h5py==2.10.0
 hdfs==2.5.8
